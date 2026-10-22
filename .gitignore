@@ -1,0 +1,134 @@
+# ==============================================================================
+# Python
+# ==============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Ambienti virtuali Python
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Caches di testing, linting e Jupyter
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# ==============================================================================
+# .NET / C# / Visual Studio
+# ==============================================================================
+# Cartelle di compilazione e build artifacts
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# File utente e cache di Visual Studio
+.vs/
+*.user
+*.userosscache
+*.sln.docstates
+*.suo
+
+# Debug symbols e file temporanei di compilazione MSBuild
+*.pdb
+*.cache
+*.GeneratedMSBuildEditorConfig.editorconfig
+
+# ==============================================================================
+# File 3D, Mesh e Backup Blender
+# ==============================================================================
+*.blend
+*.blend1
+*.blend2
+*.blend@
+*.glb
+*.gltf
+*.obj
+*.mtl
+*.ply
+*.stl
+*.fbx
+*.dae
+*.off
+
+# ==============================================================================
+# Dataset, Immagini e Formati Medici (DICOM / NIfTI)
+# ==============================================================================
+*.jpg
+*.jpeg
+*.png
+*.tif
+*.tiff
+*.csv
+*.dcm
+*.dicom
+*.nii
+*.nii.gz
+*.mhd
+*.raw
+
+# Modelli e checkpoint Machine Learning (se utilizzati)
+*.pt
+*.pth
+*.onnx
+*.h5
+*.pkl
+*.pickle
+
+# ==============================================================================
+# Output generati dalle pipeline di ricostruzione
+# ==============================================================================
+**/output/
+**/output_*/
+**/results/
+
+# ==============================================================================
+# Documenti e File Temporanei di Office
+# ==============================================================================
+*.pdf
+~$*.xlsx
+~$*.docx
+~$*.pptx
+*.tmp
+*.temp
+*~
+*.bak
+
+# ==============================================================================
+# IDE ed Editor di Codice
+# ==============================================================================
+.idea/
+.vscode/
+
+# ==============================================================================
+# Sistema Operativo (Windows / macOS / Linux)
+# ==============================================================================
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+desktop.ini
+$RECYCLE.BIN/
+
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+
+# ==============================================================================
+# Log e File di Configurazione / Variabili d'Ambiente
+# ==============================================================================
+*.log
+.env
+.env.*
+!.env.example

@@ -1,0 +1,541 @@
+using System;
+using System.Diagnostics;
+using System.IO;
+using System.Threading;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using Microsoft.Win32;
+using Mammography3D.Core.Models;
+using Mammography3D.Core.Services;
+
+namespace Mammography3D.Desktop
+{
+    public partial class MainWindow : Window
+    {
+        private readonly IReconstructionService _reconstructionService;
+        private CancellationTokenSource? _cts;
+        private ReconstructionResult? _lastResult;
+
+        public MainWindow()
+        {
+            InitializeComponent();
+            _reconstructionService = new LocalPythonReconstructionService();
+            Loaded += MainWindow_Loaded;
+        }
+
+        private void MainWindow_Loaded(object sender, RoutedEventArgs e)
+        {
+            FitWindowToScreen();
+            PopulatePatientCases();
+        }
+
+        private void FitWindowToScreen()
+        {
+            try
+            {
+                double workHeight = SystemParameters.WorkArea.Height;
+                double workWidth = SystemParameters.WorkArea.Width;
+
+                this.MaxHeight = workHeight;
+                this.MaxWidth = workWidth;
+
+                if (this.Height > workHeight - 20)
+                {
+                    this.Height = Math.Max(480, workHeight - 40);
+                }
+                if (this.Width > workWidth - 20)
+                {
+                    this.Width = Math.Max(750, workWidth - 40);
+                }
+
+                this.Top = Math.Max(0, (workHeight - this.Height) / 2);
+                this.Left = Math.Max(0, (workWidth - this.Width) / 2);
+            }
+            catch { }
+        }
+
+        #region Window Drag and Control Buttons
+
+        private void Header_MouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (e.ChangedButton == System.Windows.Input.MouseButton.Left)
+            {
+                this.DragMove();
+            }
+        }
+
+        private void BtnWindowMinimize_Click(object sender, RoutedEventArgs e)
+        {
+            this.WindowState = WindowState.Minimized;
+        }
+
+        private void BtnWindowMaximize_Click(object sender, RoutedEventArgs e)
+        {
+            if (this.WindowState == WindowState.Maximized)
+            {
+                this.WindowState = WindowState.Normal;
+                if (BtnWindowMax != null) BtnWindowMax.Content = "🗖";
+            }
+            else
+            {
+                this.WindowState = WindowState.Maximized;
+                if (BtnWindowMax != null) BtnWindowMax.Content = "🗗";
+            }
+        }
+
+        private void BtnWindowClose_Click(object sender, RoutedEventArgs e)
+        {
+            this.Close();
+        }
+
+        #endregion
+
+        private static string FindRepoRoot()
+        {
+            string current = AppDomain.CurrentDomain.BaseDirectory;
+            for (int i = 0; i < 6; i++)
+            {
+                if (Directory.Exists(Path.Combine(current, "01_Ricostruzione_Lesione_3D")))
+                {
+                    return current;
+                }
+                var parent = Directory.GetParent(current);
+                if (parent == null) break;
+                current = parent.FullName;
+            }
+            return @"c:\Users\Pierluca\Desktop\Tesi";
+        }
+
+        private void BtnRefreshPatients_Click(object sender, RoutedEventArgs e)
+        {
+            PopulatePatientCases();
+        }
+
+        private void PopulatePatientCases()
+        {
+            CmbPatientCase.SelectionChanged -= CmbPatientCase_SelectionChanged;
+            CmbPatientCase.Items.Clear();
+
+            string repoRoot = FindRepoRoot();
+            string dataRoot = Path.Combine(repoRoot, "01_Ricostruzione_Lesione_3D", "data");
+
+            var patientsFound = new System.Collections.Generic.List<string>();
+            if (Directory.Exists(dataRoot))
+            {
+                foreach (var dir in Directory.GetDirectories(dataRoot))
+                {
+                    string dirName = Path.GetFileName(dir);
+                    if (File.Exists(Path.Combine(dir, "R-CC.jpg")))
+                    {
+                        patientsFound.Add(dirName);
+                    }
+                }
+            }
+
+            patientsFound.Sort();
+
+            foreach (var p in patientsFound)
+            {
+                CmbPatientCase.Items.Add(new ComboBoxItem { Content = $"Caso: {p}", Tag = p });
+            }
+
+            CmbPatientCase.Items.Add(new ComboBoxItem { Content = "📁 [Cartella Personalizzata...]", Tag = "CUSTOM" });
+
+            CmbPatientCase.SelectionChanged += CmbPatientCase_SelectionChanged;
+
+            if (CmbPatientCase.Items.Count > 0)
+            {
+                CmbPatientCase.SelectedIndex = 0;
+            }
+        }
+
+        private void CmbPatientCase_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (CmbPatientCase.SelectedItem is ComboBoxItem item && item.Tag is string tag)
+            {
+                if (tag == "CUSTOM")
+                {
+                    TxtSelectedPatientBadge.Text = "Custom";
+                    return;
+                }
+
+                string patientId = tag;
+                string repoRoot = FindRepoRoot();
+                string patientDataDir = Path.Combine(repoRoot, "01_Ricostruzione_Lesione_3D", "data", patientId);
+                string patientOutputDir = Path.Combine(repoRoot, "01_Ricostruzione_Lesione_3D", "output", patientId);
+
+                TxtSelectedPatientBadge.Text = $"output/{patientId}";
+                TxtOutputDir.Text = patientOutputDir;
+
+                SetImageIfValid(Path.Combine(patientDataDir, "R-CC.jpg"), TxtPathCC, ImgThumbCC);
+                SetImageIfValid(Path.Combine(patientDataDir, "R-MLO.jpg"), TxtPathMLO, ImgThumbMLO);
+                SetImageIfValid(Path.Combine(patientDataDir, "ROI-R-CC.jpg"), TxtPathRoiCC, ImgThumbRoiCC);
+                SetImageIfValid(Path.Combine(patientDataDir, "ROI-R-MLO.jpg"), TxtPathRoiMLO, ImgThumbRoiMLO);
+
+                LoadPatientMetrics(patientOutputDir, patientId);
+            }
+        }
+
+        private void LoadPatientMetrics(string outputDir, string patientId)
+        {
+            string jsonReport = Path.Combine(outputDir, "validation_report.json");
+            if (File.Exists(jsonReport))
+            {
+                try
+                {
+                    string json = File.ReadAllText(jsonReport);
+                    using var doc = System.Text.Json.JsonDocument.Parse(json);
+                    var root = doc.RootElement;
+
+                    if (root.TryGetProperty("reconstruction", out var rec))
+                    {
+                        double dev = rec.GetProperty("final_pvc_mean_deviation_rate_percent").GetDouble();
+                        TxtDevRate.Text = $"{dev:F2}%";
+                    }
+
+                    if (root.TryGetProperty("mesh_properties", out var mesh))
+                    {
+                        double vol = mesh.GetProperty("volume_mm3").GetDouble();
+                        double sph = mesh.GetProperty("sphericity").GetDouble();
+                        int faces = mesh.GetProperty("faces").GetInt32();
+                        int verts = mesh.GetProperty("vertices").GetInt32();
+
+                        TxtVolume.Text = $"{vol:F2} mm³";
+                        TxtSphericity.Text = $"{sph:F3}";
+                        TxtMeshInfo.Text = $"{faces:N0} facce ({verts:N0} vertici)";
+                    }
+
+                    if (root.TryGetProperty("segmentation", out var seg))
+                    {
+                        if (seg.TryGetProperty("cc", out var cc))
+                            TxtDiceCC.Text = $"{cc.GetProperty("dice_vs_manual").GetDouble() * 100:F1}%";
+                        if (seg.TryGetProperty("mlo", out var mlo))
+                            TxtDiceMLO.Text = $"{mlo.GetProperty("dice_vs_manual").GetDouble() * 100:F1}%";
+                    }
+
+                    TxtConsoleLog.AppendText($"[SISTEMA] Caricati risultati 3D salvati per il caso: {patientId}\n");
+                    TxtCurrentPhase.Text = $"Paziente {patientId}: modello 3D pronto (Visualizzabile in Blender).";
+                    return;
+                }
+                catch { }
+            }
+
+            // If not yet computed for this patient:
+            TxtDevRate.Text = "--";
+            TxtVolume.Text = "-- mm³";
+            TxtSphericity.Text = "--";
+            TxtDiceCC.Text = "-- %";
+            TxtDiceMLO.Text = "-- %";
+            TxtMeshInfo.Text = "In attesa di ricostruzione";
+            TxtCurrentPhase.Text = $"Paziente {patientId}: pronto per avviare la ricostruzione 3D.";
+            TxtConsoleLog.AppendText($"[SISTEMA] Selezionato paziente {patientId} (output in: {outputDir})\n");
+        }
+
+        private void SetImageIfValid(string filePath, TextBlock pathLabel, Image thumbImage)
+        {
+            if (File.Exists(filePath))
+            {
+                pathLabel.Text = filePath;
+                pathLabel.ToolTip = filePath;
+                try
+                {
+                    var bmp = new BitmapImage();
+                    bmp.BeginInit();
+                    bmp.UriSource = new Uri(filePath, UriKind.Absolute);
+                    bmp.CacheOption = BitmapCacheOption.OnLoad;
+                    bmp.DecodePixelWidth = 240; // Optimize thumbnail memory
+                    bmp.EndInit();
+                    bmp.Freeze();
+                    thumbImage.Source = bmp;
+                }
+                catch { }
+            }
+        }
+
+        #region File Pickers & Drag-Drop
+
+        private void BtnBrowseCC_Click(object sender, RoutedEventArgs e) =>
+            BrowseImage("Seleziona Mammografia R-CC", TxtPathCC, ImgThumbCC);
+
+        private void BtnBrowseMLO_Click(object sender, RoutedEventArgs e) =>
+            BrowseImage("Seleziona Mammografia R-MLO", TxtPathMLO, ImgThumbMLO);
+
+        private void BtnBrowseRoiCC_Click(object sender, RoutedEventArgs e) =>
+            BrowseImage("Seleziona Maschera ROI CC", TxtPathRoiCC, ImgThumbRoiCC);
+
+        private void BtnBrowseRoiMLO_Click(object sender, RoutedEventArgs e) =>
+            BrowseImage("Seleziona Maschera ROI MLO", TxtPathRoiMLO, ImgThumbRoiMLO);
+
+        private void BrowseImage(string title, TextBlock pathLabel, Image thumbImage)
+        {
+            var dlg = new OpenFileDialog
+            {
+                Title = title,
+                Filter = "Immagini Mammografiche (*.jpg;*.jpeg;*.png;*.tif;*.bmp)|*.jpg;*.jpeg;*.png;*.tif;*.bmp|Tutti i file (*.*)|*.*"
+            };
+
+            if (dlg.ShowDialog() == true)
+            {
+                SetImageIfValid(dlg.FileName, pathLabel, thumbImage);
+            }
+        }
+
+        private void ImageCard_Drop(object sender, DragEventArgs e)
+        {
+            if (e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
+                if (files.Length > 0 && sender is Border border && border.Tag is string tag)
+                {
+                    string file = files[0];
+                    switch (tag)
+                    {
+                        case "CC": SetImageIfValid(file, TxtPathCC, ImgThumbCC); break;
+                        case "MLO": SetImageIfValid(file, TxtPathMLO, ImgThumbMLO); break;
+                        case "ROICC": SetImageIfValid(file, TxtPathRoiCC, ImgThumbRoiCC); break;
+                        case "ROIMLO": SetImageIfValid(file, TxtPathRoiMLO, ImgThumbRoiMLO); break;
+                    }
+                }
+            }
+        }
+
+        private void BtnBrowseOutput_Click(object sender, RoutedEventArgs e)
+        {
+            var dlg = new OpenFolderDialog
+            {
+                Title = "Seleziona Cartella di Output"
+            };
+            if (dlg.ShowDialog() == true)
+            {
+                TxtOutputDir.Text = dlg.FolderName;
+            }
+        }
+
+        #endregion
+
+        #region Reconstruction Execution
+
+        private async void BtnStartReconstruction_Click(object sender, RoutedEventArgs e)
+        {
+            int resolution = 140;
+            if (CmbResolution.SelectedItem is ComboBoxItem item && int.TryParse(item.Tag?.ToString(), out int r))
+                resolution = r;
+
+            var config = new ReconstructionConfig
+            {
+                RCcPath = TxtPathCC.Text,
+                RMloPath = TxtPathMLO.Text,
+                RoiCcPath = TxtPathRoiCC.Text,
+                RoiMloPath = TxtPathRoiMLO.Text,
+                OutputDir = TxtOutputDir.Text,
+                MloAngleDeg = SliderMloAngle.Value,
+                GridResolution = resolution,
+                VoxelSizeMm = 0.1
+            };
+
+            var errors = config.Validate();
+            if (errors.Count > 0)
+            {
+                MessageBox.Show(string.Join("\n\n", errors), "Verifica File di Input", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            // Update UI state
+            BtnStartReconstruction.IsEnabled = false;
+            BtnCancel.IsEnabled = true;
+            StatusBadge.Background = new SolidColorBrush(Color.FromRgb(0x00, 0x96, 0xC7));
+            StatusBadgeText.Text = "In Elaborazione...";
+            TxtConsoleLog.AppendText($"\n--- INIZIO RICOSTRUZIONE 3D: {DateTime.Now:HH:mm:ss} ---\n");
+
+            _cts = new CancellationTokenSource();
+
+            var progress = new Progress<ReconstructionProgress>(p =>
+            {
+                ProgressBarReconstruction.Value = p.Percentage;
+                TxtProgressPercent.Text = $"{p.Percentage:F0}%";
+                TxtCurrentPhase.Text = p.StageDescription;
+
+                if (!string.IsNullOrWhiteSpace(p.LogMessage))
+                {
+                    TxtConsoleLog.AppendText(p.LogMessage + "\n");
+                    TxtConsoleLog.ScrollToEnd();
+                }
+            });
+
+            try
+            {
+                var result = await _reconstructionService.ReconstructAsync(config, progress, _cts.Token);
+                _lastResult = result;
+
+                if (result.Success)
+                {
+                    StatusBadge.Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x9D, 0x8F));
+                    StatusBadgeText.Text = "Completato";
+                    TxtCurrentPhase.Text = $"Ricostruzione 3D completata in {result.ExecutionTimeSeconds:F2} secondi!";
+
+                    // Update Metrics Card
+                    TxtDevRate.Text = $"{result.FinalPvcMeanDevRatePercent:F2}%";
+                    TxtVolume.Text = $"{result.VolumeMm3:F2} mm³";
+                    TxtSphericity.Text = $"{result.Sphericity:F3}";
+                    TxtDiceCC.Text = $"{result.DiceCc * 100:F1}%";
+                    TxtDiceMLO.Text = $"{result.DiceMlo * 100:F1}%";
+                    TxtMeshInfo.Text = $"{result.FacesCount:N0} facce ({result.VerticesCount:N0} vertici)";
+
+                    MessageBox.Show(
+                        $"Ricostruzione 3D completata con successo!\n\n" +
+                        $"• Volume lesione: {result.VolumeMm3:F2} mm³\n" +
+                        $"• Sfericità: {result.Sphericity:F3}\n" +
+                        $"• Mean Deviation Rate: {result.FinalPvcMeanDevRatePercent:F2}% (Paper: 5.82%)\n" +
+                        $"• Modello 3D generato: {Path.GetFileName(result.GlbLesionPath)}",
+                        "Ricostruzione 3D Completata",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information
+                    );
+                }
+                else
+                {
+                    StatusBadge.Background = new SolidColorBrush(Color.FromRgb(0xE6, 0x39, 0x46));
+                    StatusBadgeText.Text = "Errore";
+                    TxtCurrentPhase.Text = result.ErrorMessage ?? "Errore durante l'elaborazione.";
+                    MessageBox.Show(result.ErrorMessage, "Errore Ricostruzione", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                StatusBadge.Background = new SolidColorBrush(Color.FromRgb(0xE6, 0x39, 0x46));
+                StatusBadgeText.Text = "Errore";
+                MessageBox.Show(ex.Message, "Eccezione Imprevista", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                BtnStartReconstruction.IsEnabled = true;
+                BtnCancel.IsEnabled = false;
+            }
+        }
+
+        private void BtnCancel_Click(object sender, RoutedEventArgs e)
+        {
+            _cts?.Cancel();
+            BtnCancel.IsEnabled = false;
+            TxtCurrentPhase.Text = "Annullamento in corso...";
+        }
+
+        #endregion
+
+        #region Actions & Tools
+
+        private void BtnOpenBlender_Click(object sender, RoutedEventArgs e)
+        {
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            string repoRoot = Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", ".."));
+
+            var blenderCandidates = new[]
+            {
+                @"C:\Users\Pierluca\OneDrive\Documenti\Blender\blender.exe",
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "OneDrive", "Documenti", "Blender", "blender.exe"),
+                Path.Combine(repoRoot, "Blender", "blender.exe"),
+                Path.Combine(baseDir, "..", "Blender", "blender.exe"),
+                @"c:\Users\Pierluca\Desktop\Tesi\Blender\blender.exe",
+                @"C:\Program Files\Blender Foundation\Blender 5.2\blender.exe",
+                @"C:\Program Files\Blender Foundation\Blender 4.2\blender.exe",
+                @"C:\Program Files\Blender Foundation\Blender\blender.exe"
+            };
+
+            string? blenderExe = null;
+            foreach (var b in blenderCandidates)
+            {
+                if (File.Exists(b))
+                {
+                    blenderExe = b;
+                    break;
+                }
+            }
+
+            if (blenderExe == null)
+            {
+                MessageBox.Show("Eseguibile Blender non trovato in C:\\Users\\Pierluca\\OneDrive\\Documenti\\Blender\\blender.exe o percorsi alternativi.", "Blender non trovato", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            string outputDir = TxtOutputDir.Text;
+            string blendFile = Path.Combine(outputDir, "meshes", "lesion_reconstructed.blend");
+            string glbFile = Path.Combine(outputDir, "meshes", "lesion_reconstructed.glb");
+
+            string fileToOpen = File.Exists(blendFile) ? blendFile : glbFile;
+
+            if (!File.Exists(fileToOpen))
+            {
+                MessageBox.Show("Nessun modello 3D trovato in output/meshes/. Esegui prima la ricostruzione.", "File non trovato", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = blenderExe,
+                    Arguments = $"\"{fileToOpen}\"",
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Errore durante l'avvio di Blender: " + ex.Message, "Errore", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void BtnOpenFolder_Click(object sender, RoutedEventArgs e)
+        {
+            string outputDir = TxtOutputDir.Text;
+            if (Directory.Exists(outputDir))
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = outputDir,
+                    UseShellExecute = true
+                });
+            }
+            else
+            {
+                MessageBox.Show("La cartella specificata non esiste ancora.", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+
+        private void BtnViewFigures_Click(object sender, RoutedEventArgs e)
+        {
+            string outputDir = TxtOutputDir.Text;
+            string figuresDir = Path.Combine(outputDir, "figures");
+            string mainFig = Path.Combine(figuresDir, "multiview_3d_renders.png");
+
+            if (File.Exists(mainFig))
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = mainFig,
+                    UseShellExecute = true
+                });
+            }
+            else if (Directory.Exists(figuresDir))
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = figuresDir,
+                    UseShellExecute = true
+                });
+            }
+            else
+            {
+                MessageBox.Show("Le figure diagnostiche non sono ancora state generate.", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+
+        private void BtnClearLog_Click(object sender, RoutedEventArgs e)
+        {
+            TxtConsoleLog.Clear();
+        }
+
+        #endregion
+    }
+}

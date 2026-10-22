@@ -1,0 +1,39 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v8.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v8.0": {
+      "Mammography3D.Desktop/1.0.0": {
+        "dependencies": {
+          "Mammography3D.Core": "1.0.0"
+        },
+        "runtime": {
+          "Mammography3D.Desktop.dll": {}
+        }
+      },
+      "Mammography3D.Core/1.0.0": {
+        "runtime": {
+          "Mammography3D.Core.dll": {
+            "assemblyVersion": "1.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "Mammography3D.Desktop/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Mammography3D.Core/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

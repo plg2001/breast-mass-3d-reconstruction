@@ -1,0 +1,499 @@
+<Window x:Class="Mammography3D.Desktop.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="Mammography 3D Lesion Reconstruction (Ling Shao, 2007 - PVC Pipeline)"
+        Height="700" Width="1100" MinHeight="500" MinWidth="850"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="CanResizeWithGrip"
+        Background="#0B132B" Foreground="#E2E8F0"
+        FontFamily="Segoe UI">
+
+    <Window.Resources>
+        <!-- Dark Theme Colors -->
+        <Color x:Key="BgDark">#0B132B</Color>
+        <Color x:Key="CardBg">#1C2541</Color>
+        <Color x:Key="CardBorder">#3A506B</Color>
+        <Color x:Key="AccentCyan">#48CAE4</Color>
+        <Color x:Key="AccentBlue">#0077B6</Color>
+        <Color x:Key="AccentCrimson">#E63946</Color>
+        <Color x:Key="AccentGreen">#2A9D8F</Color>
+
+        <!-- Base Button Style -->
+        <Style x:Key="ModernButton" TargetType="Button">
+            <Setter Property="Background" Value="#3A506B" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Padding" Value="12,6" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}"
+                                CornerRadius="5" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Opacity" Value="0.88" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Opacity" Value="0.75" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="border" Property="Opacity" Value="0.35" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Window Control Button (Min, Max, Close) -->
+        <Style x:Key="WindowControlButton" TargetType="Button">
+            <Setter Property="Background" Value="#2A3859" />
+            <Setter Property="Foreground" Value="#E2E8F0" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Width" Value="32" />
+            <Setter Property="Height" Value="26" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}" CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#3A506B" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#1C2541" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="WindowCloseButton" TargetType="Button" BasedOn="{StaticResource WindowControlButton}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}" CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#E63946" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#C1121F" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Primary Action Button -->
+        <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource ModernButton}">
+            <Setter Property="Background" Value="#0096C7" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Padding" Value="18,8" />
+        </Style>
+
+        <!-- Blender Button -->
+        <Style x:Key="BlenderButton" TargetType="Button" BasedOn="{StaticResource ModernButton}">
+            <Setter Property="Background" Value="#E76F51" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Padding" Value="14,6" />
+        </Style>
+    </Window.Resources>
+
+    <!-- Scrollable Root Container to guarantee access on any screen resolution -->
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <Grid Margin="12">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" /> <!-- 0: Header + Window Controls -->
+                <RowDefinition Height="Auto" /> <!-- 1: Patient / Case Selector Bar -->
+                <RowDefinition Height="180" />  <!-- 2: Image Cards Grid -->
+                <RowDefinition Height="Auto" /> <!-- 3: Settings & Parameters -->
+                <RowDefinition Height="Auto" /> <!-- 4: Action Buttons & Progress -->
+                <RowDefinition Height="240" MinHeight="180" /> <!-- 5: Results + Console -->
+            </Grid.RowDefinitions>
+
+            <!-- 0. HEADER (Draggable + Status Badge + In-App Window Controls) -->
+            <Border Grid.Row="0" Background="#1C2541" CornerRadius="8" Padding="14,8" Margin="0,0,0,10"
+                    BorderBrush="#3A506B" BorderThickness="1"
+                    MouseLeftButtonDown="Header_MouseDown" Cursor="SizeAll"
+                    ToolTip="Clicca e trascina qui per spostare la finestra">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="🔬" FontSize="18" Margin="0,0,8,0" VerticalAlignment="Center" />
+                            <TextBlock Text="Ricostruzione 3D Lesioni Mammografiche" FontSize="17" FontWeight="Bold" Foreground="#48CAE4" />
+                            <Border Background="#2A9D8F" CornerRadius="4" Padding="6,2" Margin="10,0,0,0" VerticalAlignment="Center">
+                                <TextBlock Text="Ling Shao (2007) - PVC" FontSize="10" FontWeight="Bold" Foreground="#FFFFFF" />
+                            </Border>
+                        </StackPanel>
+                        <TextBlock Text="Algoritmo matematico Partial Volume Compensated da proiezioni bi-planari (CC &amp; MLO). Per visore VR / Unity."
+                                   FontSize="11" Foreground="#94A3B8" Margin="26,1,0,0" />
+                    </StackPanel>
+
+                    <!-- Status Badge -->
+                    <Border Grid.Column="1" x:Name="StatusBadge" Background="#3A506B" CornerRadius="12" Padding="12,4" VerticalAlignment="Center" Margin="0,0,14,0">
+                        <TextBlock x:Name="StatusBadgeText" Text="Pronto" FontWeight="Bold" FontSize="11" Foreground="#E2E8F0" />
+                    </Border>
+
+                    <!-- In-App Window Control Buttons (Minimize, Maximize/Restore, Close) -->
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button Content="🗕" Style="{StaticResource WindowControlButton}" Click="BtnWindowMinimize_Click" Margin="0,0,4,0" ToolTip="Riduci a icona" />
+                        <Button x:Name="BtnWindowMax" Content="🗖" Style="{StaticResource WindowControlButton}" Click="BtnWindowMaximize_Click" Margin="0,0,4,0" ToolTip="Ingrandisci / Ripristina" />
+                        <Button Content="✕" Style="{StaticResource WindowCloseButton}" Click="BtnWindowClose_Click" ToolTip="Chiudi applicazione" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- 1. PATIENT / CASE SELECTOR BAR -->
+            <Border Grid.Row="1" Background="#1C2541" CornerRadius="7" Padding="12,7" Margin="0,0,0,10" BorderBrush="#3A506B" BorderThickness="1">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="220" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
+                        <TextBlock Text="👤" FontSize="14" Margin="0,0,6,0" VerticalAlignment="Center" />
+                        <TextBlock Text="Caso Paziente:" FontWeight="Bold" FontSize="12" Foreground="#E2E8F0" VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <ComboBox Grid.Column="1" x:Name="CmbPatientCase" Background="#0B132B" Foreground="#0B132B"
+                              VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold"
+                              SelectionChanged="CmbPatientCase_SelectionChanged" />
+
+                    <Button Grid.Column="2" Content="🔄 Ricarica Cartelle" Style="{StaticResource ModernButton}"
+                            Click="BtnRefreshPatients_Click" Margin="10,0,14,0" Height="26" Padding="10,3" />
+
+                    <StackPanel Grid.Column="3" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <TextBlock Text="Cartella Output:" FontSize="11" Foreground="#94A3B8" Margin="0,0,6,0" VerticalAlignment="Center" />
+                        <Border Background="#0B132B" CornerRadius="4" Padding="8,3" BorderBrush="#2A3859" BorderThickness="1">
+                            <TextBlock x:Name="TxtSelectedPatientBadge" Text="output/P_00232" FontSize="11" FontWeight="Bold" Foreground="#48CAE4" />
+                        </Border>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- 2. IMAGE CARDS (4 Inputs: CC, MLO, ROI-CC, ROI-MLO) -->
+            <Grid Grid.Row="2" Margin="0,0,0,10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Card 1: R-CC -->
+                <Border Grid.Column="0" Background="#1C2541" CornerRadius="7" BorderBrush="#3A506B" BorderThickness="1" Margin="0,0,4,0" Padding="8"
+                        AllowDrop="True" Drop="ImageCard_Drop" Tag="CC">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <TextBlock Text="📷 Vista R-CC" FontWeight="Bold" FontSize="12" Foreground="#48CAE4" />
+                            <TextBlock Text=" (CC)" FontSize="10" Foreground="#94A3B8" Margin="3,1,0,0" />
+                        </StackPanel>
+                        <Border Grid.Row="1" Background="#0B132B" CornerRadius="5" BorderBrush="#2A3859" BorderThickness="1" ClipToBounds="True">
+                            <Image x:Name="ImgThumbCC" Stretch="Uniform" />
+                        </Border>
+                        <StackPanel Grid.Row="2" Margin="0,4,0,0">
+                            <TextBlock x:Name="TxtPathCC" Text="Nessun file selezionato" FontSize="9" Foreground="#CBD5E1" TextTrimming="CharacterEllipsis" Margin="0,0,0,3" />
+                            <Button Content="Sfoglia CC..." Style="{StaticResource ModernButton}" Click="BtnBrowseCC_Click" HorizontalAlignment="Stretch" Height="26" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- Card 2: R-MLO -->
+                <Border Grid.Column="1" Background="#1C2541" CornerRadius="7" BorderBrush="#3A506B" BorderThickness="1" Margin="2,0,2,0" Padding="8"
+                        AllowDrop="True" Drop="ImageCard_Drop" Tag="MLO">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <TextBlock Text="📷 Vista R-MLO" FontWeight="Bold" FontSize="12" Foreground="#48CAE4" />
+                            <TextBlock Text=" (MLO)" FontSize="10" Foreground="#94A3B8" Margin="3,1,0,0" />
+                        </StackPanel>
+                        <Border Grid.Row="1" Background="#0B132B" CornerRadius="5" BorderBrush="#2A3859" BorderThickness="1" ClipToBounds="True">
+                            <Image x:Name="ImgThumbMLO" Stretch="Uniform" />
+                        </Border>
+                        <StackPanel Grid.Row="2" Margin="0,4,0,0">
+                            <TextBlock x:Name="TxtPathMLO" Text="Nessun file selezionato" FontSize="9" Foreground="#CBD5E1" TextTrimming="CharacterEllipsis" Margin="0,0,0,3" />
+                            <Button Content="Sfoglia MLO..." Style="{StaticResource ModernButton}" Click="BtnBrowseMLO_Click" HorizontalAlignment="Stretch" Height="26" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- Card 3: ROI-CC -->
+                <Border Grid.Column="2" Background="#1C2541" CornerRadius="7" BorderBrush="#3A506B" BorderThickness="1" Margin="2,0,2,0" Padding="8"
+                        AllowDrop="True" Drop="ImageCard_Drop" Tag="ROICC">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <TextBlock Text="🎯 Maschera ROI CC" FontWeight="Bold" FontSize="12" Foreground="#E63946" />
+                            <TextBlock Text=" (Lesione)" FontSize="10" Foreground="#94A3B8" Margin="3,1,0,0" />
+                        </StackPanel>
+                        <Border Grid.Row="1" Background="#0B132B" CornerRadius="5" BorderBrush="#2A3859" BorderThickness="1" ClipToBounds="True">
+                            <Image x:Name="ImgThumbRoiCC" Stretch="Uniform" />
+                        </Border>
+                        <StackPanel Grid.Row="2" Margin="0,4,0,0">
+                            <TextBlock x:Name="TxtPathRoiCC" Text="Nessun file selezionato" FontSize="9" Foreground="#CBD5E1" TextTrimming="CharacterEllipsis" Margin="0,0,0,3" />
+                            <Button Content="Sfoglia ROI CC..." Style="{StaticResource ModernButton}" Click="BtnBrowseRoiCC_Click" HorizontalAlignment="Stretch" Height="26" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- Card 4: ROI-MLO -->
+                <Border Grid.Column="3" Background="#1C2541" CornerRadius="7" BorderBrush="#3A506B" BorderThickness="1" Margin="4,0,0,0" Padding="8"
+                        AllowDrop="True" Drop="ImageCard_Drop" Tag="ROIMLO">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <TextBlock Text="🎯 Maschera ROI MLO" FontWeight="Bold" FontSize="12" Foreground="#E63946" />
+                            <TextBlock Text=" (Lesione)" FontSize="10" Foreground="#94A3B8" Margin="3,1,0,0" />
+                        </StackPanel>
+                        <Border Grid.Row="1" Background="#0B132B" CornerRadius="5" BorderBrush="#2A3859" BorderThickness="1" ClipToBounds="True">
+                            <Image x:Name="ImgThumbRoiMLO" Stretch="Uniform" />
+                        </Border>
+                        <StackPanel Grid.Row="2" Margin="0,4,0,0">
+                            <TextBlock x:Name="TxtPathRoiMLO" Text="Nessun file selezionato" FontSize="9" Foreground="#CBD5E1" TextTrimming="CharacterEllipsis" Margin="0,0,0,3" />
+                            <Button Content="Sfoglia ROI MLO..." Style="{StaticResource ModernButton}" Click="BtnBrowseRoiMLO_Click" HorizontalAlignment="Stretch" Height="26" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- 3. SETTINGS & PARAMETERS -->
+            <Border Grid.Row="3" Background="#1C2541" CornerRadius="7" Padding="12,8" Margin="0,0,0,10" BorderBrush="#3A506B" BorderThickness="1">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="130" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="100" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Output Folder -->
+                    <TextBlock Text="📁 Output:" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="#E2E8F0" FontSize="12" />
+                    <Grid Grid.Column="1" Margin="0,0,14,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="TxtOutputDir" VerticalAlignment="Center" Background="#0B132B" Foreground="#48CAE4" BorderBrush="#3A506B"
+                                 Padding="5,3" FontSize="11" />
+                        <Button Grid.Column="1" Content="..." Width="26" Margin="4,0,0,0" Style="{StaticResource ModernButton}" Click="BtnBrowseOutput_Click" Height="24" />
+                    </Grid>
+
+                    <!-- MLO Angle -->
+                    <TextBlock Grid.Column="2" Text="📐 Angolo MLO:" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="#E2E8F0" FontSize="12" />
+                    <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,14,0">
+                        <Slider x:Name="SliderMloAngle" Minimum="20" Maximum="70" Value="45" Width="75" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding ElementName=SliderMloAngle, Path=Value, StringFormat={}{0:F0}°}"
+                                   FontWeight="Bold" Foreground="#48CAE4" Margin="6,0,0,0" VerticalAlignment="Center" Width="30" FontSize="11" />
+                    </StackPanel>
+
+                    <!-- Grid Resolution -->
+                    <TextBlock Grid.Column="4" Text="🧊 Griglia:" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="#E2E8F0" FontSize="12" />
+                    <ComboBox Grid.Column="5" x:Name="CmbResolution" SelectedIndex="1" Background="#0B132B" Foreground="#0B132B" VerticalAlignment="Center" FontSize="11">
+                        <ComboBoxItem Content="100x100 (Veloce)" Tag="100" />
+                        <ComboBoxItem Content="140x140 (Standard)" Tag="140" />
+                        <ComboBoxItem Content="180x180 (Alta Fedeltà)" Tag="180" />
+                    </ComboBox>
+                </Grid>
+            </Border>
+
+            <!-- 4. ACTION BUTTONS & PROGRESS BAR -->
+            <Border Grid.Row="4" Background="#1C2541" CornerRadius="7" Padding="12,8" Margin="0,0,0,10" BorderBrush="#3A506B" BorderThickness="1">
+                <StackPanel>
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <Button x:Name="BtnStartReconstruction" Grid.Column="0" Content="▶  Avvia Ricostruzione 3D"
+                                Style="{StaticResource PrimaryButton}" Click="BtnStartReconstruction_Click" Margin="0,0,8,0" />
+                        <Button x:Name="BtnCancel" Grid.Column="1" Content="✖  Annulla"
+                                Style="{StaticResource ModernButton}" Click="BtnCancel_Click" IsEnabled="False" Margin="0,0,8,0" />
+
+                        <!-- Phase Description Text -->
+                        <TextBlock x:Name="TxtCurrentPhase" Grid.Column="2" Text="Pronto per la ricostruzione tridimensionale."
+                                   Foreground="#CBD5E1" VerticalAlignment="Center" FontStyle="Italic" TextTrimming="CharacterEllipsis" Margin="8,0" FontSize="11" />
+
+                        <Button x:Name="BtnOpenBlender" Grid.Column="3" Content="🎨  Apri in Blender"
+                                Style="{StaticResource BlenderButton}" Click="BtnOpenBlender_Click" Margin="0,0,6,0" />
+                        <Button x:Name="BtnOpenFolder" Grid.Column="4" Content="📂  Cartella Risultati"
+                                Style="{StaticResource ModernButton}" Click="BtnOpenFolder_Click" />
+                    </Grid>
+
+                    <!-- Progress Bar -->
+                    <Grid>
+                        <ProgressBar x:Name="ProgressBarReconstruction" Height="12" Minimum="0" Maximum="100" Value="0"
+                                     Background="#0B132B" Foreground="#0096C7" BorderThickness="0" />
+                        <TextBlock x:Name="TxtProgressPercent" Text="0%" FontSize="9" FontWeight="Bold" Foreground="#FFFFFF"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- 5. BOTTOM: SCIENTIFIC RESULTS + LOG CONSOLE -->
+            <Grid Grid.Row="5">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="340" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Results Card -->
+                <Border Grid.Column="0" Background="#1C2541" CornerRadius="7" Padding="12" Margin="0,0,6,0" BorderBrush="#3A506B" BorderThickness="1">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Text="📊 Metriche e Benchmark" FontWeight="Bold" FontSize="13" Foreground="#48CAE4" Margin="0,0,0,8" />
+
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <!-- Deviation Rate vs Paper -->
+                                <Border Background="#0B132B" CornerRadius="5" Padding="8" Margin="0,0,0,6">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="Mean Deviation Rate (PVE)" FontWeight="SemiBold" FontSize="11" Foreground="#CBD5E1" />
+                                            <TextBlock Text="Paper Ling Shao (2007): 5.82%" FontSize="9" Foreground="#94A3B8" />
+                                        </StackPanel>
+                                        <TextBlock x:Name="TxtDevRate" Grid.Column="1" Text="--" FontWeight="Bold" FontSize="15" Foreground="#2A9D8F" VerticalAlignment="Center" />
+                                    </Grid>
+                                </Border>
+
+                                <!-- Volume & Sphericity -->
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Background="#0B132B" CornerRadius="5" Padding="6" Margin="0,0,3,0">
+                                        <StackPanel>
+                                            <TextBlock Text="Volume 3D" FontSize="10" Foreground="#94A3B8" />
+                                            <TextBlock x:Name="TxtVolume" Text="-- mm³" FontWeight="Bold" FontSize="13" Foreground="#48CAE4" Margin="0,1,0,0" />
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Grid.Column="1" Background="#0B132B" CornerRadius="5" Padding="6" Margin="3,0,0,0">
+                                        <StackPanel>
+                                            <TextBlock Text="Sfericità (Ψ)" FontSize="10" Foreground="#94A3B8" />
+                                            <TextBlock x:Name="TxtSphericity" Text="--" FontWeight="Bold" FontSize="13" Foreground="#48CAE4" Margin="0,1,0,0" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+
+                                <!-- 2D Dice Scores -->
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Background="#0B132B" CornerRadius="5" Padding="6" Margin="0,0,3,0">
+                                        <StackPanel>
+                                            <TextBlock Text="Dice Score CC" FontSize="10" Foreground="#94A3B8" />
+                                            <TextBlock x:Name="TxtDiceCC" Text="-- %" FontWeight="Bold" FontSize="12" Foreground="#2A9D8F" Margin="0,1,0,0" />
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Grid.Column="1" Background="#0B132B" CornerRadius="5" Padding="6" Margin="3,0,0,0">
+                                        <StackPanel>
+                                            <TextBlock Text="Dice Score MLO" FontSize="10" Foreground="#94A3B8" />
+                                            <TextBlock x:Name="TxtDiceMLO" Text="-- %" FontWeight="Bold" FontSize="12" Foreground="#2A9D8F" Margin="0,1,0,0" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+
+                                <!-- Mesh Polygons -->
+                                <Border Background="#0B132B" CornerRadius="5" Padding="6" Margin="0,0,0,6">
+                                    <StackPanel>
+                                        <TextBlock Text="Geometria Mesh 3D (.GLB)" FontSize="10" Foreground="#94A3B8" />
+                                        <TextBlock x:Name="TxtMeshInfo" Text="Watertight Solid 2-Manifold" FontWeight="SemiBold" FontSize="11" Foreground="#CBD5E1" Margin="0,1,0,0" />
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+
+                        <Button Grid.Row="2" Content="🖼  Visualizza Figure Diagnostiche" Style="{StaticResource ModernButton}" Click="BtnViewFigures_Click" HorizontalAlignment="Stretch" Height="26" />
+                    </Grid>
+                </Border>
+
+                <!-- Console Log Output -->
+                <Border Grid.Column="1" Background="#080E21" CornerRadius="7" Padding="10" BorderBrush="#3A506B" BorderThickness="1">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <Grid Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="💻 Console Log Ricostruzione (Real-Time)" FontWeight="SemiBold" FontSize="11" Foreground="#94A3B8" VerticalAlignment="Center" />
+                            <Button Grid.Column="1" Content="Pulisci" Style="{StaticResource ModernButton}" Padding="6,2" FontSize="10" Click="BtnClearLog_Click" Height="22" />
+                        </Grid>
+
+                        <TextBox Grid.Row="1" x:Name="TxtConsoleLog" Background="Transparent" Foreground="#A7F3D0"
+                                 FontFamily="Consolas, Cascadia Code, Courier New" FontSize="10"
+                                 IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                                 BorderThickness="0" />
+                    </Grid>
+                </Border>
+            </Grid>
+        </Grid>
+    </ScrollViewer>
+</Window>

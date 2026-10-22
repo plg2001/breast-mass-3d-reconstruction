@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mammography3D.Core", "Mammography3D.Core\Mammography3D.Core.csproj", "{70883503-C21E-4803-9C5C-8C96CBC43C59}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mammography3D.Desktop", "Mammography3D.Desktop\Mammography3D.Desktop.csproj", "{9D83F011-E69C-4E7F-AB86-E1104C271D0D}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{70883503-C21E-4803-9C5C-8C96CBC43C59}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{70883503-C21E-4803-9C5C-8C96CBC43C59}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{70883503-C21E-4803-9C5C-8C96CBC43C59}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{70883503-C21E-4803-9C5C-8C96CBC43C59}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9D83F011-E69C-4E7F-AB86-E1104C271D0D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9D83F011-E69C-4E7F-AB86-E1104C271D0D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9D83F011-E69C-4E7F-AB86-E1104C271D0D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9D83F011-E69C-4E7F-AB86-E1104C271D0D}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
