@@ -22,13 +22,13 @@ Tesi/
 │   ├── Mammography3D.Desktop/         # Codice sorgente GUI WPF (.NET 8)
 │   ├── Mammography3D.Core/            # Modelli, servizi e script pronti per Unity / VR
 │   ├── Mammography3D_App/             # Applicazione compilata pronta all'uso
-│   └── Avvia_Interfaccia_Grafica.bat  # Launcher locale dell'app
+│   └── Mammography3D.bat              # Launcher locale dell'app
 │
 ├── 04_Paper_e_Documenti/              # [DOCUMENTAZIONE] Letteratura e proposta di tesi
 │   ├── proposta_idea_tesi_visore_edge.pdf # Proposta di tesi per visore Android / Edge
 │   └── (Articoli scientifici PDF)
 │
-├── Avvia_Interfaccia_Grafica.bat      # 🚀 Launcher principale rapido nella radice
+├── Mammography3D.bat                  # 🚀 Launcher principale rapido nella radice
 └── README.md                          # Questo file
 ```
 
@@ -36,8 +36,8 @@ Tesi/
 
 ## ⚡ Avvio Rapido
 
-1. **Interfaccia Grafica C#**:
-   Fai doppio clic su `Avvia_Interfaccia_Grafica.bat` nella cartella principale.
+1. **Applicazione Desktop (Mammography 3D)**:
+   Fai doppio clic su `Mammography3D.bat` nella cartella principale.
    L'app consente di selezionare le immagini (con anteprime e drag-and-drop), avviare la ricostruzione in background e aprire il modello in Blender.
 
 2. **Esecuzione diretta da Script Python (Sola Lesione)**:

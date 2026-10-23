@@ -31,7 +31,7 @@ namespace Mammography3D.Core.Services
 
             // 2. Resolve Python and Script paths
             string pythonExe = ResolvePythonPath(config.PythonExecutable);
-            string scriptPath = ResolveScriptPath(config.ScriptPath);
+            string scriptPath = ResolveScriptPath(config.Algorithm, config.ScriptPath);
 
             if (!File.Exists(pythonExe) && pythonExe != "python")
             {
@@ -48,16 +48,35 @@ namespace Mammography3D.Core.Services
 
             Directory.CreateDirectory(outputDir);
 
-            // 3. Build CLI arguments
-            string arguments = $"\"{scriptPath}\"" +
-                $" --r-cc \"{Path.GetFullPath(config.RCcPath)}\"" +
-                $" --r-mlo \"{Path.GetFullPath(config.RMloPath)}\"" +
-                $" --roi-cc \"{Path.GetFullPath(config.RoiCcPath)}\"" +
-                $" --roi-mlo \"{Path.GetFullPath(config.RoiMloPath)}\"" +
-                $" --output-dir \"{outputDir}\"" +
-                $" --mlo-angle {config.MloAngleDeg.ToString(System.Globalization.CultureInfo.InvariantCulture)}" +
-                $" --grid-resolution {config.GridResolution}" +
-                $" --voxel-size-mm {config.VoxelSizeMm.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+            // 3. Build CLI arguments based on selected algorithm
+            string arguments;
+            if (config.Algorithm == ReconstructionAlgorithm.SMRD_2015)
+            {
+                arguments = $"\"{scriptPath}\"" +
+                    $" --roi-cc \"{Path.GetFullPath(config.RoiCcPath)}\"" +
+                    $" --roi-mlo \"{Path.GetFullPath(config.RoiMloPath)}\"" +
+                    $" --output-dir \"{outputDir}\"" +
+                    $" --beta {config.MloAngleDeg.ToString(System.Globalization.CultureInfo.InvariantCulture)}" +
+                    $" --grid-resolution {config.GridResolution}" +
+                    $" --voxel-size-mm {config.VoxelSizeMm.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+
+                if (!string.IsNullOrWhiteSpace(config.RCcPath) && File.Exists(config.RCcPath))
+                    arguments += $" --r-cc \"{Path.GetFullPath(config.RCcPath)}\"";
+                if (!string.IsNullOrWhiteSpace(config.RMloPath) && File.Exists(config.RMloPath))
+                    arguments += $" --r-mlo \"{Path.GetFullPath(config.RMloPath)}\"";
+            }
+            else
+            {
+                arguments = $"\"{scriptPath}\"" +
+                    $" --r-cc \"{Path.GetFullPath(config.RCcPath)}\"" +
+                    $" --r-mlo \"{Path.GetFullPath(config.RMloPath)}\"" +
+                    $" --roi-cc \"{Path.GetFullPath(config.RoiCcPath)}\"" +
+                    $" --roi-mlo \"{Path.GetFullPath(config.RoiMloPath)}\"" +
+                    $" --output-dir \"{outputDir}\"" +
+                    $" --mlo-angle {config.MloAngleDeg.ToString(System.Globalization.CultureInfo.InvariantCulture)}" +
+                    $" --grid-resolution {config.GridResolution}" +
+                    $" --voxel-size-mm {config.VoxelSizeMm.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+            }
 
             progress?.Report(new ReconstructionProgress(
                 ReconstructionPhase.Starting,
@@ -87,8 +106,38 @@ namespace Mammography3D.Core.Services
             {
                 if (string.IsNullOrWhiteSpace(line)) return;
 
-                // Stage and percentage detection
-                if (line.Contains("[CC] Starting automated mass segmentation"))
+                // SMRD Stages
+                if (line.Contains("[SMRD] Inizializzazione"))
+                {
+                    currentPhase = ReconstructionPhase.Starting;
+                    currentPercent = Math.Max(currentPercent, 10.0f);
+                }
+                else if (line.Contains("[SMRD] Caricamento maschere"))
+                {
+                    currentPhase = ReconstructionPhase.SegmentationCC;
+                    currentPercent = Math.Max(currentPercent, 25.0f);
+                }
+                else if (line.Contains("[SMRD] Fitting Armoniche Sferiche"))
+                {
+                    currentPhase = ReconstructionPhase.VisualHull;
+                    currentPercent = Math.Max(currentPercent, 50.0f);
+                }
+                else if (line.Contains("[SMRD] Generazione superficie"))
+                {
+                    currentPhase = ReconstructionPhase.MeshExtraction;
+                    currentPercent = Math.Max(currentPercent, 80.0f);
+                }
+                else if (line.Contains("[SMRD] Esportazione mesh"))
+                {
+                    currentPhase = ReconstructionPhase.ExportingGLB;
+                    currentPercent = Math.Max(currentPercent, 90.0f);
+                }
+                else if (line.Contains("[SMRD] Generazione rendering"))
+                {
+                    currentPercent = Math.Max(currentPercent, 95.0f);
+                }
+                // Ling Shao Stages
+                else if (line.Contains("[CC] Starting automated mass segmentation"))
                 {
                     currentPhase = ReconstructionPhase.SegmentationCC;
                     currentPercent = Math.Max(currentPercent, 8.0f);
@@ -321,22 +370,45 @@ namespace Mammography3D.Core.Services
             return @"c:\Users\Pierluca\Desktop\Tesi";
         }
 
-        private static string ResolveScriptPath(string? customScript)
+        private static string ResolveScriptPath(ReconstructionAlgorithm algorithm, string? customScript)
         {
             if (!string.IsNullOrWhiteSpace(customScript) && File.Exists(customScript))
                 return customScript;
 
             string repoRoot = FindRepoRoot();
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+
+            if (algorithm == ReconstructionAlgorithm.SMRD_2015)
+            {
+                string smrdCandidate = Path.Combine(repoRoot, "05_Ricostruzione_Lesione_SMRD_Paper", "smrd_lesion_reconstruction.py");
+                if (File.Exists(smrdCandidate))
+                    return smrdCandidate;
+
+                var smrdCandidates = new[]
+                {
+                    Path.Combine(baseDir, "..", "05_Ricostruzione_Lesione_SMRD_Paper", "smrd_lesion_reconstruction.py"),
+                    Path.Combine(baseDir, "..", "..", "05_Ricostruzione_Lesione_SMRD_Paper", "smrd_lesion_reconstruction.py"),
+                    Path.Combine(baseDir, "05_Ricostruzione_Lesione_SMRD_Paper", "smrd_lesion_reconstruction.py"),
+                    @"c:\Users\Pierluca\Desktop\breast-mass-3d-reconstruction\05_Ricostruzione_Lesione_SMRD_Paper\smrd_lesion_reconstruction.py",
+                    @"c:\Users\Pierluca\Desktop\Tesi\05_Ricostruzione_Lesione_SMRD_Paper\smrd_lesion_reconstruction.py"
+                };
+
+                foreach (var c in smrdCandidates)
+                {
+                    try { if (File.Exists(c)) return Path.GetFullPath(c); } catch { }
+                }
+            }
+
             string candidate = Path.Combine(repoRoot, "01_Ricostruzione_Lesione_3D", "lesion_pvc_reconstruction.py");
             if (File.Exists(candidate))
                 return candidate;
 
-            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
             var candidates = new[]
             {
                 Path.Combine(baseDir, "..", "01_Ricostruzione_Lesione_3D", "lesion_pvc_reconstruction.py"),
                 Path.Combine(baseDir, "..", "..", "01_Ricostruzione_Lesione_3D", "lesion_pvc_reconstruction.py"),
                 Path.Combine(baseDir, "01_Ricostruzione_Lesione_3D", "lesion_pvc_reconstruction.py"),
+                @"c:\Users\Pierluca\Desktop\breast-mass-3d-reconstruction\01_Ricostruzione_Lesione_3D\lesion_pvc_reconstruction.py",
                 @"c:\Users\Pierluca\Desktop\Tesi\01_Ricostruzione_Lesione_3D\lesion_pvc_reconstruction.py"
             };
 
@@ -349,7 +421,7 @@ namespace Mammography3D.Core.Services
                 catch { }
             }
 
-            return @"c:\Users\Pierluca\Desktop\Tesi\01_Ricostruzione_Lesione_3D\lesion_pvc_reconstruction.py";
+            return @"c:\Users\Pierluca\Desktop\breast-mass-3d-reconstruction\01_Ricostruzione_Lesione_3D\lesion_pvc_reconstruction.py";
         }
 
         private static ReconstructionResult ParseReport(string outputDir, double executionTime)
@@ -365,7 +437,18 @@ namespace Mammography3D.Core.Services
             string figuresDir = Path.Combine(outputDir, "figures");
 
             res.GlbLesionPath = Path.Combine(meshesDir, "lesion_reconstructed.glb");
+            if (!File.Exists(res.GlbLesionPath) && Directory.Exists(outputDir))
+            {
+                var glbs = Directory.GetFiles(outputDir, "*.glb");
+                if (glbs.Length > 0) res.GlbLesionPath = glbs[0];
+            }
+
             res.BlendLesionPath = Path.Combine(meshesDir, "lesion_reconstructed.blend");
+            if (!File.Exists(res.BlendLesionPath) && Directory.Exists(outputDir))
+            {
+                var blends = Directory.GetFiles(outputDir, "*.blend");
+                if (blends.Length > 0) res.BlendLesionPath = blends[0];
+            }
 
             res.MultiviewRenderPath = Path.Combine(figuresDir, "multiview_3d_renders.png");
             res.AnalysisPlotPath = Path.Combine(figuresDir, "reconstruction_analysis.png");

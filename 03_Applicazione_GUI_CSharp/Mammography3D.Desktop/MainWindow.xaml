@@ -4,7 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="Mammography 3D Lesion Reconstruction (Ling Shao, 2007 - PVC Pipeline)"
+        Title="Mammography 3D Lesion Reconstruction (SMRD &amp; Ling Shao Pipelines)"
         Height="700" Width="1100" MinHeight="500" MinWidth="850"
         WindowStartupLocation="CenterScreen"
         ResizeMode="CanResizeWithGrip"
@@ -53,55 +53,6 @@
             </Setter>
         </Style>
 
-        <!-- Window Control Button (Min, Max, Close) -->
-        <Style x:Key="WindowControlButton" TargetType="Button">
-            <Setter Property="Background" Value="#2A3859" />
-            <Setter Property="Foreground" Value="#E2E8F0" />
-            <Setter Property="FontSize" Value="11" />
-            <Setter Property="FontWeight" Value="Bold" />
-            <Setter Property="Width" Value="32" />
-            <Setter Property="Height" Value="26" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="border" Background="{TemplateBinding Background}" CornerRadius="4">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="border" Property="Background" Value="#3A506B" />
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="border" Property="Background" Value="#1C2541" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="WindowCloseButton" TargetType="Button" BasedOn="{StaticResource WindowControlButton}">
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="border" Background="{TemplateBinding Background}" CornerRadius="4">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="border" Property="Background" Value="#E63946" />
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="border" Property="Background" Value="#C1121F" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
         <!-- Primary Action Button -->
         <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource ModernButton}">
             <Setter Property="Background" Value="#0096C7" />
@@ -131,8 +82,8 @@
                 <RowDefinition Height="240" MinHeight="180" /> <!-- 5: Results + Console -->
             </Grid.RowDefinitions>
 
-            <!-- 0. HEADER (Draggable + Status Badge + In-App Window Controls) -->
-            <Border Grid.Row="0" Background="#1C2541" CornerRadius="8" Padding="14,8" Margin="0,0,0,10"
+            <!-- 0. HEADER (Draggable + Status Badge) -->
+            <Border Grid.Row="0" Background="#1C2541" CornerRadius="8" Padding="14,10" Margin="0,0,0,10"
                     BorderBrush="#3A506B" BorderThickness="1"
                     MouseLeftButtonDown="Header_MouseDown" Cursor="SizeAll"
                     ToolTip="Clicca e trascina qui per spostare la finestra">
@@ -140,32 +91,25 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
                     <StackPanel VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="🔬" FontSize="18" Margin="0,0,8,0" VerticalAlignment="Center" />
                             <TextBlock Text="Ricostruzione 3D Lesioni Mammografiche" FontSize="17" FontWeight="Bold" Foreground="#48CAE4" />
-                            <Border Background="#2A9D8F" CornerRadius="4" Padding="6,2" Margin="10,0,0,0" VerticalAlignment="Center">
-                                <TextBlock Text="Ling Shao (2007) - PVC" FontSize="10" FontWeight="Bold" Foreground="#FFFFFF" />
+                            <Border x:Name="BadgeAlgorithmHeader" Background="#2A9D8F" CornerRadius="4" Padding="7,2" Margin="10,0,0,0" VerticalAlignment="Center">
+                                <TextBlock x:Name="TxtBadgeAlgorithm" Text="SMRD (2015) - De Sisternes" FontSize="10" FontWeight="Bold" Foreground="#FFFFFF" />
                             </Border>
                         </StackPanel>
-                        <TextBlock Text="Algoritmo matematico Partial Volume Compensated da proiezioni bi-planari (CC &amp; MLO). Per visore VR / Unity."
-                                   FontSize="11" Foreground="#94A3B8" Margin="26,1,0,0" />
+                        <TextBlock x:Name="TxtAlgorithmSubtitle"
+                                   Text="Modello 3D organico continuo a sfericità biologica e deformazione radiale (Medical Physics 2015)."
+                                   FontSize="11" Foreground="#94A3B8" Margin="26,2,0,0" />
                     </StackPanel>
 
                     <!-- Status Badge -->
-                    <Border Grid.Column="1" x:Name="StatusBadge" Background="#3A506B" CornerRadius="12" Padding="12,4" VerticalAlignment="Center" Margin="0,0,14,0">
+                    <Border Grid.Column="1" x:Name="StatusBadge" Background="#3A506B" CornerRadius="12" Padding="14,5" VerticalAlignment="Center">
                         <TextBlock x:Name="StatusBadgeText" Text="Pronto" FontWeight="Bold" FontSize="11" Foreground="#E2E8F0" />
                     </Border>
-
-                    <!-- In-App Window Control Buttons (Minimize, Maximize/Restore, Close) -->
-                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                        <Button Content="🗕" Style="{StaticResource WindowControlButton}" Click="BtnWindowMinimize_Click" Margin="0,0,4,0" ToolTip="Riduci a icona" />
-                        <Button x:Name="BtnWindowMax" Content="🗖" Style="{StaticResource WindowControlButton}" Click="BtnWindowMaximize_Click" Margin="0,0,4,0" ToolTip="Ingrandisci / Ripristina" />
-                        <Button Content="✕" Style="{StaticResource WindowCloseButton}" Click="BtnWindowClose_Click" ToolTip="Chiudi applicazione" />
-                    </StackPanel>
                 </Grid>
             </Border>
 
@@ -303,44 +247,66 @@
             </Grid>
 
             <!-- 3. SETTINGS & PARAMETERS -->
-            <Border Grid.Row="3" Background="#1C2541" CornerRadius="7" Padding="12,8" Margin="0,0,0,10" BorderBrush="#3A506B" BorderThickness="1">
+            <Border Grid.Row="3" Background="#1C2541" CornerRadius="7" Padding="12,10" Margin="0,0,0,10" BorderBrush="#3A506B" BorderThickness="1">
                 <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="130" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="100" />
-                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
 
-                    <!-- Output Folder -->
-                    <TextBlock Text="📁 Output:" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="#E2E8F0" FontSize="12" />
-                    <Grid Grid.Column="1" Margin="0,0,14,0">
+                    <!-- Top Row: Algoritmo, Angolo MLO, Griglia/Precisione -->
+                    <Grid Grid.Row="0" Margin="0,0,0,8">
                         <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="290" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="130" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="140" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Algorithm Selector -->
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
+                            <TextBlock Text="⚡" FontSize="13" Margin="0,0,4,0" VerticalAlignment="Center" />
+                            <TextBlock Text="Algoritmo:" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="#E2E8F0" FontSize="12" />
+                        </StackPanel>
+                        <ComboBox Grid.Column="1" x:Name="CmbAlgorithm" SelectedIndex="0" Background="#0B132B" Foreground="#0B132B"
+                                  VerticalAlignment="Center" FontSize="11" FontWeight="SemiBold"
+                                  SelectionChanged="CmbAlgorithm_SelectionChanged">
+                            <ComboBoxItem Content="SMRD (De Sisternes 2015) ★ Consigliato" Tag="SMRD" />
+                            <ComboBoxItem Content="Ling Shao (2007) - Visual Hull PVC" Tag="LING_SHAO" />
+                        </ComboBox>
+
+                        <!-- MLO Angle -->
+                        <TextBlock Grid.Column="2" Text="📐 Angolo MLO:" FontWeight="SemiBold" VerticalAlignment="Center" Margin="14,0,6,0" Foreground="#E2E8F0" FontSize="12" />
+                        <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Slider x:Name="SliderMloAngle" Minimum="20" Maximum="70" Value="45" Width="80" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding ElementName=SliderMloAngle, Path=Value, StringFormat={}{0:F0}°}"
+                                       FontWeight="Bold" Foreground="#48CAE4" Margin="6,0,0,0" VerticalAlignment="Center" Width="30" FontSize="11" />
+                        </StackPanel>
+
+                        <!-- Grid Resolution -->
+                        <TextBlock Grid.Column="4" Text="🧊 Griglia:" FontWeight="SemiBold" VerticalAlignment="Center" Margin="14,0,6,0" Foreground="#E2E8F0" FontSize="12" />
+                        <ComboBox Grid.Column="5" x:Name="CmbResolution" SelectedIndex="1" Background="#0B132B" Foreground="#0B132B" VerticalAlignment="Center" FontSize="11">
+                            <ComboBoxItem Content="100x100 (Veloce)" Tag="100" />
+                            <ComboBoxItem Content="140x140 (Standard)" Tag="140" />
+                            <ComboBoxItem Content="180x180 (Alta Fedeltà)" Tag="180" />
+                        </ComboBox>
+                    </Grid>
+
+                    <!-- Bottom Row: Output Folder -->
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBox x:Name="TxtOutputDir" VerticalAlignment="Center" Background="#0B132B" Foreground="#48CAE4" BorderBrush="#3A506B"
-                                 Padding="5,3" FontSize="11" />
-                        <Button Grid.Column="1" Content="..." Width="26" Margin="4,0,0,0" Style="{StaticResource ModernButton}" Click="BtnBrowseOutput_Click" Height="24" />
+                        <TextBlock Text="📁 Cartella Output:" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="#E2E8F0" FontSize="12" />
+                        <TextBox Grid.Column="1" x:Name="TxtOutputDir" VerticalAlignment="Center" Background="#0B132B" Foreground="#48CAE4" BorderBrush="#3A506B"
+                                 Padding="6,3" FontSize="11" />
+                        <Button Grid.Column="2" Content="Sfoglia..." Width="65" Margin="6,0,0,0" Style="{StaticResource ModernButton}" Click="BtnBrowseOutput_Click" Height="25" />
                     </Grid>
-
-                    <!-- MLO Angle -->
-                    <TextBlock Grid.Column="2" Text="📐 Angolo MLO:" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="#E2E8F0" FontSize="12" />
-                    <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,14,0">
-                        <Slider x:Name="SliderMloAngle" Minimum="20" Maximum="70" Value="45" Width="75" VerticalAlignment="Center" />
-                        <TextBlock Text="{Binding ElementName=SliderMloAngle, Path=Value, StringFormat={}{0:F0}°}"
-                                   FontWeight="Bold" Foreground="#48CAE4" Margin="6,0,0,0" VerticalAlignment="Center" Width="30" FontSize="11" />
-                    </StackPanel>
-
-                    <!-- Grid Resolution -->
-                    <TextBlock Grid.Column="4" Text="🧊 Griglia:" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="#E2E8F0" FontSize="12" />
-                    <ComboBox Grid.Column="5" x:Name="CmbResolution" SelectedIndex="1" Background="#0B132B" Foreground="#0B132B" VerticalAlignment="Center" FontSize="11">
-                        <ComboBoxItem Content="100x100 (Veloce)" Tag="100" />
-                        <ComboBoxItem Content="140x140 (Standard)" Tag="140" />
-                        <ComboBoxItem Content="180x180 (Alta Fedeltà)" Tag="180" />
-                    </ComboBox>
                 </Grid>
             </Border>
 
@@ -409,8 +375,8 @@
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
                                         <StackPanel>
-                                            <TextBlock Text="Mean Deviation Rate (PVE)" FontWeight="SemiBold" FontSize="11" Foreground="#CBD5E1" />
-                                            <TextBlock Text="Paper Ling Shao (2007): 5.82%" FontSize="9" Foreground="#94A3B8" />
+                                            <TextBlock x:Name="TxtDevRateLabel" Text="Mean Deviation Rate" FontWeight="SemiBold" FontSize="11" Foreground="#CBD5E1" />
+                                            <TextBlock x:Name="TxtBenchmarkRef" Text="Paper Benchmark: SMRD 2015" FontSize="9" Foreground="#94A3B8" />
                                         </StackPanel>
                                         <TextBlock x:Name="TxtDevRate" Grid.Column="1" Text="--" FontWeight="Bold" FontSize="15" Foreground="#2A9D8F" VerticalAlignment="Center" />
                                     </Grid>

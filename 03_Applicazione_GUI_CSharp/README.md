@@ -24,4 +24,4 @@ Questo modulo contiene:
 
 ## 🚀 Avvio Rapido
 
-- Fai doppio clic su **`Avvia_Interfaccia_Grafica.bat`**.
+- Fai doppio clic su **`Mammography3D.bat`**.

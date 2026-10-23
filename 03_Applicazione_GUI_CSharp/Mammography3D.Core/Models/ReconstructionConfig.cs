@@ -4,12 +4,32 @@ using System.IO;
 
 namespace Mammography3D.Core.Models
 {
+    public enum ReconstructionAlgorithm
+    {
+        /// <summary>
+        /// Luis de Sisternes et al. (Medical Physics, 2015) - Spherical-Harmonic Multi-view Radial Deformation.
+        /// Continua a curvatura minima, sfericità organica elevata (Psi > 0.88), priva di artefatti prismatici a 45°.
+        /// </summary>
+        SMRD_2015,
+
+        /// <summary>
+        /// Ling Shao (Journal of Digital Imaging, 2007) - Partial Volume Compensated 3D Reconstruction.
+        /// Basato su Visual Hull algebrico e stima continua del volume parziale.
+        /// </summary>
+        LingShao_2007
+    }
+
     /// <summary>
     /// Configuration parameters for the 3D mammographic lesion reconstruction pipeline.
     /// Compatible with Unity (.NET Standard 2.0 / .NET Standard 2.1).
     /// </summary>
     public class ReconstructionConfig
     {
+        /// <summary>
+        /// Algoritmo di ricostruzione 3D selezionato (predefinito: SMRD 2015).
+        /// </summary>
+        public ReconstructionAlgorithm Algorithm { get; set; } = ReconstructionAlgorithm.SMRD_2015;
+
         public string RCcPath { get; set; } = string.Empty;
         public string RMloPath { get; set; } = string.Empty;
         public string RoiCcPath { get; set; } = string.Empty;
@@ -50,15 +70,18 @@ namespace Mammography3D.Core.Models
         {
             var errors = new List<string>();
 
-            if (string.IsNullOrWhiteSpace(RCcPath))
-                errors.Add("Il percorso dell'immagine R-CC non è specificato.");
-            else if (!File.Exists(RCcPath))
-                errors.Add($"Immagine R-CC non trovata: {RCcPath}");
+            if (Algorithm == ReconstructionAlgorithm.LingShao_2007)
+            {
+                if (string.IsNullOrWhiteSpace(RCcPath))
+                    errors.Add("Il percorso dell'immagine R-CC non è specificato.");
+                else if (!File.Exists(RCcPath))
+                    errors.Add($"Immagine R-CC non trovata: {RCcPath}");
 
-            if (string.IsNullOrWhiteSpace(RMloPath))
-                errors.Add("Il percorso dell'immagine R-MLO non è specificato.");
-            else if (!File.Exists(RMloPath))
-                errors.Add($"Immagine R-MLO non trovata: {RMloPath}");
+                if (string.IsNullOrWhiteSpace(RMloPath))
+                    errors.Add("Il percorso dell'immagine R-MLO non è specificato.");
+                else if (!File.Exists(RMloPath))
+                    errors.Add($"Immagine R-MLO non trovata: {RMloPath}");
+            }
 
             if (string.IsNullOrWhiteSpace(RoiCcPath))
                 errors.Add("Il percorso della maschera ROI CC non è specificato.");
