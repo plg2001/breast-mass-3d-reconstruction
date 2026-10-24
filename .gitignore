@@ -63,6 +63,8 @@ htmlcov/
 # ==============================================================================
 # Dataset, Immagini e Formati Medici (DICOM / NIfTI)
 # ==============================================================================
+/data/
+CBIS-DDSM/
 *.jpg
 *.jpeg
 *.png
@@ -142,3 +144,4 @@ AGENTS.md
 .gemini/
 
 CBIS-DDSM
+data

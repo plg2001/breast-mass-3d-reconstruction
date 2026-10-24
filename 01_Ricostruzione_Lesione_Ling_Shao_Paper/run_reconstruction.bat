@@ -7,25 +7,34 @@ echo ===========================================================================
 echo.
 cd /d "%~dp0"
 
-echo Scegli quale caso clinico ricostruire:
-echo   [1] Ricostruisci TUTTI i pazienti trovati in data/ (--all-cases)
-echo   [2] Solo paziente P_00232 (output in output\P_00232\)
-echo   [3] Solo paziente P_01754 (output in output\P_01754\)
-echo.
-set /p SCELTA="Inserisci opzione (1, 2 o 3, default: 1): "
+set PYTHON_CMD=python
+if exist "C:\Python311\python.exe" set PYTHON_CMD=C:\Python311\python.exe
 
-if "%SCELTA%"=="2" (
+echo Scegli quale caso clinico ricostruire da data/:
+echo   [1] Ricostruisci TUTTI i pazienti trovati in data/ (--all-cases)
+echo   [2] Paziente P_00232 (output in output\P_00232\)
+echo   [3] Paziente P_01754 (output in output\P_01754\)
+echo   [4] Inserisci ID paziente personalizzato (es. P_00001, P_00506...)
+echo.
+set /p SCELTA="Inserisci opzione (1, 2, 3 o 4, default: 2): "
+
+if "%SCELTA%"=="1" (
     echo.
-    echo Esecuzione ricostruzione per P_00232...
-    python lesion_pvc_reconstruction.py --case P_00232
+    echo Esecuzione batch per TUTTI i pazienti in data\...
+    "%PYTHON_CMD%" lesion_pvc_reconstruction.py --all-cases
 ) else if "%SCELTA%"=="3" (
     echo.
     echo Esecuzione ricostruzione per P_01754...
-    python lesion_pvc_reconstruction.py --case P_01754
+    "%PYTHON_CMD%" lesion_pvc_reconstruction.py --case P_01754
+) else if "%SCELTA%"=="4" (
+    echo.
+    set /p CUSTOM_PATIENT="Inserisci il codice paziente (es. P_00001): "
+    echo Esecuzione ricostruzione per %CUSTOM_PATIENT%...
+    "%PYTHON_CMD%" lesion_pvc_reconstruction.py --case %CUSTOM_PATIENT%
 ) else (
     echo.
-    echo Esecuzione batch per TUTTI i pazienti in data\...
-    python lesion_pvc_reconstruction.py --all-cases
+    echo Esecuzione ricostruzione per P_00232...
+    "%PYTHON_CMD%" lesion_pvc_reconstruction.py --case P_00232
 )
 
 echo.

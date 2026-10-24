@@ -12,13 +12,21 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 def compare_models(patient_id="P_00232"):
-    dir_ling_shao = rf"c:\Users\Pierluca\Desktop\Tesi\01_Ricostruzione_Lesione_Ling_Shao_Paper\output\{patient_id}"
-    if not os.path.exists(dir_ling_shao):
-        dir_ling_shao = rf"c:\Users\Pierluca\Desktop\breast-mass-3d-reconstruction\01_Ricostruzione_Lesione_Ling_Shao_Paper\output\{patient_id}"
-    dir_smrd = rf"c:\Users\Pierluca\Desktop\Tesi\04_Ricostruzione_Lesione_SMRD_Paper\output\{patient_id}"
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    dir_ling_shao = os.path.join(repo_root, "01_Ricostruzione_Lesione_Ling_Shao_Paper", "output", patient_id)
+    dir_smrd = os.path.join(repo_root, "04_Ricostruzione_Lesione_SMRD_Paper", "output", patient_id)
 
     path_shao = os.path.join(dir_ling_shao, "meshes", "lesion_reconstructed.obj")
+    if not os.path.exists(path_shao):
+        cand = os.path.join(dir_ling_shao, f"{patient_id}_lesion.obj")
+        if os.path.exists(cand):
+            path_shao = cand
+
     path_smrd = os.path.join(dir_smrd, f"{patient_id}_smrd_lesion.obj")
+    if not os.path.exists(path_smrd):
+        cand = os.path.join(dir_smrd, "meshes", "lesion_reconstructed.obj")
+        if os.path.exists(cand):
+            path_smrd = cand
 
     if not os.path.exists(path_shao):
         print(f"[ERRORE] File non trovato: {path_shao}")
@@ -114,12 +122,20 @@ def compare_models(patient_id="P_00232"):
     )
     ax6.text(0.05, 0.5, txt_smrd, color='#3fb950', fontsize=10, family='monospace', verticalalignment='center')
 
-    out_comp = rf"c:\Users\Pierluca\Desktop\Tesi\04_Ricostruzione_Lesione_SMRD_Paper\output\comparison_ling_shao_vs_smrd_{patient_id}.png"
+    out_comp = os.path.join(os.path.dirname(dir_smrd), f"comparison_ling_shao_vs_smrd_{patient_id}.png")
     plt.tight_layout(rect=[0, 0, 1, 0.95])
     plt.savefig(out_comp, dpi=200, facecolor=fig.get_facecolor(), edgecolor='none')
     plt.close()
     print(f" -> Immagine di confronto salvata: {out_comp}")
 
 if __name__ == '__main__':
-    for pid in ["P_00232", "P_01226", "P_01754"]:
-        compare_models(pid)
+    import argparse
+    parser = argparse.ArgumentParser(description="Confronto comparativo Ling Shao (2007) vs SMRD (2015)")
+    parser.add_argument('--patient', type=str, default=None, help="Paziente specifico da confrontare (es. P_00004 o P_00232)")
+    args = parser.parse_args()
+
+    if args.patient:
+        compare_models(args.patient)
+    else:
+        for pid in ["P_00232", "P_01226", "P_01754"]:
+            compare_models(pid)

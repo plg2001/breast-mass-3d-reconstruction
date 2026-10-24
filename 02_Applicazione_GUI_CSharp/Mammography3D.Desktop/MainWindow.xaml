@@ -113,29 +113,40 @@
                 </Grid>
             </Border>
 
-            <!-- 1. PATIENT / CASE SELECTOR BAR -->
+            <!-- 1. PATIENT / CASE & LESION SELECTOR BAR -->
             <Border Grid.Row="1" Background="#1C2541" CornerRadius="7" Padding="12,7" Margin="0,0,0,10" BorderBrush="#3A506B" BorderThickness="1">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="220" />
+                        <ColumnDefinition Width="170" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="230" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
 
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
                         <TextBlock Text="👤" FontSize="14" Margin="0,0,6,0" VerticalAlignment="Center" />
-                        <TextBlock Text="Caso Paziente:" FontWeight="Bold" FontSize="12" Foreground="#E2E8F0" VerticalAlignment="Center" />
+                        <TextBlock Text="Paziente:" FontWeight="Bold" FontSize="12" Foreground="#E2E8F0" VerticalAlignment="Center" />
                     </StackPanel>
 
                     <ComboBox Grid.Column="1" x:Name="CmbPatientCase" Background="#0B132B" Foreground="#0B132B"
                               VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold"
                               SelectionChanged="CmbPatientCase_SelectionChanged" />
 
-                    <Button Grid.Column="2" Content="🔄 Ricarica Cartelle" Style="{StaticResource ModernButton}"
-                            Click="BtnRefreshPatients_Click" Margin="10,0,14,0" Height="26" Padding="10,3" />
+                    <Button Grid.Column="2" Content="🔄" ToolTip="Ricarica Cartelle Pazienti" Style="{StaticResource ModernButton}"
+                            Click="BtnRefreshPatients_Click" Margin="6,0,14,0" Height="26" Padding="8,3" />
 
-                    <StackPanel Grid.Column="3" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
+                        <TextBlock Text="🎯" FontSize="13" Margin="0,0,5,0" VerticalAlignment="Center" />
+                        <TextBlock Text="Lesione:" FontWeight="Bold" FontSize="12" Foreground="#E2E8F0" VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <ComboBox Grid.Column="4" x:Name="CmbLesionSelect" Background="#0B132B" Foreground="#0B132B"
+                              VerticalAlignment="Center" FontSize="11" FontWeight="SemiBold"
+                              SelectionChanged="CmbLesionSelect_SelectionChanged" />
+
+                    <StackPanel Grid.Column="5" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                         <TextBlock Text="Cartella Output:" FontSize="11" Foreground="#94A3B8" Margin="0,0,6,0" VerticalAlignment="Center" />
                         <Border Background="#0B132B" CornerRadius="4" Padding="8,3" BorderBrush="#2A3859" BorderThickness="1">
                             <TextBlock x:Name="TxtSelectedPatientBadge" Text="output/P_00232" FontSize="11" FontWeight="Bold" Foreground="#48CAE4" />
@@ -153,7 +164,7 @@
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
-                <!-- Card 1: R-CC -->
+                <!-- Card 1: Vista CC -->
                 <Border Grid.Column="0" Background="#1C2541" CornerRadius="7" BorderBrush="#3A506B" BorderThickness="1" Margin="0,0,4,0" Padding="8"
                         AllowDrop="True" Drop="ImageCard_Drop" Tag="CC">
                     <Grid>
@@ -163,8 +174,8 @@
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                            <TextBlock Text="📷 Vista R-CC" FontWeight="Bold" FontSize="12" Foreground="#48CAE4" />
-                            <TextBlock Text=" (CC)" FontSize="10" Foreground="#94A3B8" Margin="3,1,0,0" />
+                            <TextBlock Text="📷 Vista CC" FontWeight="Bold" FontSize="12" Foreground="#48CAE4" />
+                            <TextBlock Text=" (Cranio-Caudale)" FontSize="10" Foreground="#94A3B8" Margin="3,1,0,0" />
                         </StackPanel>
                         <Border Grid.Row="1" Background="#0B132B" CornerRadius="5" BorderBrush="#2A3859" BorderThickness="1" ClipToBounds="True">
                             <Image x:Name="ImgThumbCC" Stretch="Uniform" />
@@ -176,7 +187,7 @@
                     </Grid>
                 </Border>
 
-                <!-- Card 2: R-MLO -->
+                <!-- Card 2: Vista MLO -->
                 <Border Grid.Column="1" Background="#1C2541" CornerRadius="7" BorderBrush="#3A506B" BorderThickness="1" Margin="2,0,2,0" Padding="8"
                         AllowDrop="True" Drop="ImageCard_Drop" Tag="MLO">
                     <Grid>
@@ -186,8 +197,8 @@
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                            <TextBlock Text="📷 Vista R-MLO" FontWeight="Bold" FontSize="12" Foreground="#48CAE4" />
-                            <TextBlock Text=" (MLO)" FontSize="10" Foreground="#94A3B8" Margin="3,1,0,0" />
+                            <TextBlock Text="📷 Vista MLO" FontWeight="Bold" FontSize="12" Foreground="#48CAE4" />
+                            <TextBlock Text=" (Medio-Laterale)" FontSize="10" Foreground="#94A3B8" Margin="3,1,0,0" />
                         </StackPanel>
                         <Border Grid.Row="1" Background="#0B132B" CornerRadius="5" BorderBrush="#2A3859" BorderThickness="1" ClipToBounds="True">
                             <Image x:Name="ImgThumbMLO" Stretch="Uniform" />

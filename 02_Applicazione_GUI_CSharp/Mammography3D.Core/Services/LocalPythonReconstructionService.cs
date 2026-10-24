@@ -368,7 +368,7 @@ namespace Mammography3D.Core.Services
                 if (parent == null) break;
                 current = parent.FullName;
             }
-            return @"c:\Users\Pierluca\Desktop\Tesi";
+            return @"c:\Users\Pierluca\Desktop\breast-mass-3d-reconstruction";
         }
 
         private static string ResolveScriptPath(ReconstructionAlgorithm algorithm, string? customScript)

@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
@@ -86,7 +89,7 @@ namespace Mammography3D.Desktop
                 if (parent == null) break;
                 current = parent.FullName;
             }
-            return @"c:\Users\Pierluca\Desktop\Tesi";
+            return @"c:\Users\Pierluca\Desktop\breast-mass-3d-reconstruction";
         }
 
         private void BtnRefreshPatients_Click(object sender, RoutedEventArgs e)
@@ -102,6 +105,7 @@ namespace Mammography3D.Desktop
             string repoRoot = FindRepoRoot();
             var dataRoots = new[]
             {
+                Path.Combine(repoRoot, "data"),
                 Path.Combine(repoRoot, "01_Ricostruzione_Lesione_Ling_Shao_Paper", "data"),
                 Path.Combine(repoRoot, "04_Ricostruzione_Lesione_SMRD_Paper", "data")
             };
@@ -114,7 +118,7 @@ namespace Mammography3D.Desktop
                     foreach (var dir in Directory.GetDirectories(dataRoot))
                     {
                         string dirName = Path.GetFileName(dir);
-                        if (File.Exists(Path.Combine(dir, "ROI-R-CC.jpg")) || File.Exists(Path.Combine(dir, "R-CC.jpg")))
+                        if (Directory.GetFiles(dir, "*.jpg").Length > 0)
                         {
                             patientsFound.Add(dirName);
                         }
@@ -177,6 +181,83 @@ namespace Mammography3D.Desktop
             }
         }
 
+        private class LesionCaseInfo
+        {
+            public string Key { get; set; } = "";
+            public string Laterality { get; set; } = "R";
+            public string LesionId { get; set; } = "1";
+            public string DisplayName { get; set; } = "";
+            public string PathCC { get; set; } = "";
+            public string PathMLO { get; set; } = "";
+            public string PathRoiCC { get; set; } = "";
+            public string PathRoiMLO { get; set; } = "";
+            public bool IsComplete { get; set; }
+        }
+
+        private List<LesionCaseInfo> DiscoverLesions(string patientDataDir)
+        {
+            var result = new List<LesionCaseInfo>();
+            if (!Directory.Exists(patientDataDir)) return result;
+
+            var roiFiles = Directory.GetFiles(patientDataDir, "ROI-*.jpg");
+            var roiRegex = new Regex(@"^ROI-([RL])-([A-Za-z]+)(?:_(\d+))?\.jpg$", RegexOptions.IgnoreCase);
+            var map = new Dictionary<string, (string lat, string lesId, string? roiCc, string? roiMlo)>();
+
+            foreach (var rf in roiFiles)
+            {
+                string fn = Path.GetFileName(rf);
+                var match = roiRegex.Match(fn);
+                if (match.Success)
+                {
+                    string lat = match.Groups[1].Value.ToUpper();
+                    string view = match.Groups[2].Value.ToUpper();
+                    string lesId = match.Groups[3].Success ? match.Groups[3].Value : "1";
+                    string key = $"{lat}_{lesId}";
+
+                    if (!map.ContainsKey(key))
+                        map[key] = (lat, lesId, null, null);
+
+                    var curr = map[key];
+                    if (view.Contains("CC"))
+                        map[key] = (curr.lat, curr.lesId, rf, curr.roiMlo);
+                    else if (view.Contains("MLO"))
+                        map[key] = (curr.lat, curr.lesId, curr.roiCc, rf);
+                }
+            }
+
+            foreach (var kvp in map.OrderBy(x => x.Key))
+            {
+                string key = kvp.Key;
+                var info = kvp.Value;
+                string suffix = info.lesId == "1" ? "" : $"_{info.lesId}";
+
+                string cc = Path.Combine(patientDataDir, $"{info.lat}-CC{suffix}.jpg");
+                if (!File.Exists(cc)) cc = Path.Combine(patientDataDir, $"{info.lat}-CC.jpg");
+
+                string mlo = Path.Combine(patientDataDir, $"{info.lat}-MLO{suffix}.jpg");
+                if (!File.Exists(mlo)) mlo = Path.Combine(patientDataDir, $"{info.lat}-MLO.jpg");
+
+                bool isComplete = File.Exists(info.roiCc) && File.Exists(info.roiMlo);
+                string latName = info.lat == "R" ? "Destro (R)" : "Sinistro (L)";
+                string status = isComplete ? " [3D Completo]" : " [Parziale]";
+
+                result.Add(new LesionCaseInfo
+                {
+                    Key = key,
+                    Laterality = info.lat,
+                    LesionId = info.lesId,
+                    DisplayName = $"Seno {latName} - Lesione {info.lesId}{status}",
+                    PathCC = File.Exists(cc) ? cc : "",
+                    PathMLO = File.Exists(mlo) ? mlo : "",
+                    PathRoiCC = info.roiCc ?? "",
+                    PathRoiMLO = info.roiMlo ?? "",
+                    IsComplete = isComplete
+                });
+            }
+
+            return result;
+        }
+
         private void CmbPatientCase_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (!_isUiReady) return;
@@ -186,6 +267,12 @@ namespace Mammography3D.Desktop
                 {
                     if (TxtSelectedPatientBadge != null)
                         TxtSelectedPatientBadge.Text = "Custom";
+                    if (CmbLesionSelect != null)
+                    {
+                        CmbLesionSelect.Items.Clear();
+                        CmbLesionSelect.Items.Add(new ComboBoxItem { Content = "Custom", Tag = null });
+                        CmbLesionSelect.SelectedIndex = 0;
+                    }
                     return;
                 }
 
@@ -193,13 +280,29 @@ namespace Mammography3D.Desktop
             }
         }
 
+        private void CmbLesionSelect_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_isUiReady) return;
+            if (CmbPatientCase?.SelectedItem is ComboBoxItem patItem && patItem.Tag is string pid && pid != "CUSTOM")
+            {
+                string repoRoot = FindRepoRoot();
+                string patientDataDir = Path.Combine(repoRoot, "data", pid);
+                if (!Directory.Exists(patientDataDir))
+                    patientDataDir = Path.Combine(repoRoot, "01_Ricostruzione_Lesione_Ling_Shao_Paper", "data", pid);
+                ApplySelectedLesion(pid, patientDataDir);
+            }
+        }
+
         private void UpdatePatientPathsAndMetrics(string patientId)
         {
             if (!_isUiReady) return;
             string repoRoot = FindRepoRoot();
-            bool isSmrd = CmbAlgorithm == null || CmbAlgorithm.SelectedIndex != 1;
 
-            string patientDataDir = Path.Combine(repoRoot, "01_Ricostruzione_Lesione_Ling_Shao_Paper", "data", patientId);
+            string patientDataDir = Path.Combine(repoRoot, "data", patientId);
+            if (!Directory.Exists(patientDataDir))
+            {
+                patientDataDir = Path.Combine(repoRoot, "01_Ricostruzione_Lesione_Ling_Shao_Paper", "data", patientId);
+            }
             if (!Directory.Exists(patientDataDir))
             {
                 patientDataDir = Path.Combine(repoRoot, "01_Ricostruzione_Lesione_3D", "data", patientId);
@@ -209,31 +312,88 @@ namespace Mammography3D.Desktop
                 patientDataDir = Path.Combine(repoRoot, "04_Ricostruzione_Lesione_SMRD_Paper", "data", patientId);
             }
 
+            var lesions = DiscoverLesions(patientDataDir);
+
+            if (CmbLesionSelect != null)
+            {
+                CmbLesionSelect.SelectionChanged -= CmbLesionSelect_SelectionChanged;
+                CmbLesionSelect.Items.Clear();
+
+                if (lesions.Count > 0)
+                {
+                    foreach (var les in lesions)
+                    {
+                        CmbLesionSelect.Items.Add(new ComboBoxItem
+                        {
+                            Content = les.DisplayName,
+                            Tag = les
+                        });
+                    }
+
+                    int selIdx = lesions.FindIndex(l => l.IsComplete);
+                    CmbLesionSelect.SelectedIndex = selIdx >= 0 ? selIdx : 0;
+                }
+                else
+                {
+                    CmbLesionSelect.Items.Add(new ComboBoxItem { Content = "Lesione 1 [Predefinita]", Tag = null });
+                    CmbLesionSelect.SelectedIndex = 0;
+                }
+
+                CmbLesionSelect.SelectionChanged += CmbLesionSelect_SelectionChanged;
+            }
+
+            ApplySelectedLesion(patientId, patientDataDir);
+        }
+
+        private void ApplySelectedLesion(string patientId, string patientDataDir)
+        {
+            string repoRoot = FindRepoRoot();
+            bool isSmrd = CmbAlgorithm == null || CmbAlgorithm.SelectedIndex != 1;
+
+            LesionCaseInfo? lesInfo = null;
+            if (CmbLesionSelect?.SelectedItem is ComboBoxItem item && item.Tag is LesionCaseInfo li)
+            {
+                lesInfo = li;
+            }
+
+            string lesionSuffix = (lesInfo != null && CmbLesionSelect?.Items.Count > 1) ? $"_{lesInfo.Key}" : "";
+            string outSubDir = $"{patientId}{lesionSuffix}";
+
             string patientOutputDir = isSmrd
-                ? Path.Combine(repoRoot, "04_Ricostruzione_Lesione_SMRD_Paper", "output", patientId)
-                : Path.Combine(repoRoot, "01_Ricostruzione_Lesione_Ling_Shao_Paper", "output", patientId);
+                ? Path.Combine(repoRoot, "04_Ricostruzione_Lesione_SMRD_Paper", "output", outSubDir)
+                : Path.Combine(repoRoot, "01_Ricostruzione_Lesione_Ling_Shao_Paper", "output", outSubDir);
 
             if (TxtSelectedPatientBadge != null)
-                TxtSelectedPatientBadge.Text = $"output/{patientId} ({(isSmrd ? "SMRD" : "Ling Shao")})";
+                TxtSelectedPatientBadge.Text = $"output/{outSubDir} ({(isSmrd ? "SMRD" : "Ling Shao")})";
             if (TxtOutputDir != null)
                 TxtOutputDir.Text = patientOutputDir;
 
-            if (TxtPathCC != null && ImgThumbCC != null)
-                SetImageIfValid(Path.Combine(patientDataDir, "R-CC.jpg"), TxtPathCC, ImgThumbCC);
-            if (TxtPathMLO != null && ImgThumbMLO != null)
-                SetImageIfValid(Path.Combine(patientDataDir, "R-MLO.jpg"), TxtPathMLO, ImgThumbMLO);
-            if (TxtPathRoiCC != null && ImgThumbRoiCC != null)
-                SetImageIfValid(Path.Combine(patientDataDir, "ROI-R-CC.jpg"), TxtPathRoiCC, ImgThumbRoiCC);
-            if (TxtPathRoiMLO != null && ImgThumbRoiMLO != null)
-                SetImageIfValid(Path.Combine(patientDataDir, "ROI-R-MLO.jpg"), TxtPathRoiMLO, ImgThumbRoiMLO);
+            string pathCC = lesInfo != null && !string.IsNullOrEmpty(lesInfo.PathCC) ? lesInfo.PathCC : Path.Combine(patientDataDir, "R-CC.jpg");
+            string pathMLO = lesInfo != null && !string.IsNullOrEmpty(lesInfo.PathMLO) ? lesInfo.PathMLO : Path.Combine(patientDataDir, "R-MLO.jpg");
+            string pathRoiCC = lesInfo != null && !string.IsNullOrEmpty(lesInfo.PathRoiCC) ? lesInfo.PathRoiCC : Path.Combine(patientDataDir, "ROI-R-CC.jpg");
+            string pathRoiMLO = lesInfo != null && !string.IsNullOrEmpty(lesInfo.PathRoiMLO) ? lesInfo.PathRoiMLO : Path.Combine(patientDataDir, "ROI-R-MLO.jpg");
 
-            LoadPatientMetrics(patientOutputDir, patientId);
+            if (TxtPathCC != null && ImgThumbCC != null)
+                SetImageIfValid(pathCC, TxtPathCC, ImgThumbCC);
+            if (TxtPathMLO != null && ImgThumbMLO != null)
+                SetImageIfValid(pathMLO, TxtPathMLO, ImgThumbMLO);
+            if (TxtPathRoiCC != null && ImgThumbRoiCC != null)
+                SetImageIfValid(pathRoiCC, TxtPathRoiCC, ImgThumbRoiCC);
+            if (TxtPathRoiMLO != null && ImgThumbRoiMLO != null)
+                SetImageIfValid(pathRoiMLO, TxtPathRoiMLO, ImgThumbRoiMLO);
+
+            LoadPatientMetrics(patientOutputDir, outSubDir);
         }
 
         private void LoadPatientMetrics(string outputDir, string patientId)
         {
             string jsonReport = Path.Combine(outputDir, "validation_report.json");
             string smrdJson = Path.Combine(outputDir, $"{patientId}_smrd_metrics.json");
+            if (!File.Exists(smrdJson) && Directory.Exists(outputDir))
+            {
+                var files = Directory.GetFiles(outputDir, "*_smrd_metrics.json");
+                if (files.Length > 0) smrdJson = files[0];
+            }
 
             if (File.Exists(jsonReport))
             {
@@ -338,10 +498,10 @@ namespace Mammography3D.Desktop
         #region File Pickers & Drag-Drop
 
         private void BtnBrowseCC_Click(object sender, RoutedEventArgs e) =>
-            BrowseImage("Seleziona Mammografia R-CC", TxtPathCC, ImgThumbCC);
+            BrowseImage("Seleziona Mammografia Vista CC", TxtPathCC, ImgThumbCC);
 
         private void BtnBrowseMLO_Click(object sender, RoutedEventArgs e) =>
-            BrowseImage("Seleziona Mammografia R-MLO", TxtPathMLO, ImgThumbMLO);
+            BrowseImage("Seleziona Mammografia Vista MLO", TxtPathMLO, ImgThumbMLO);
 
         private void BtnBrowseRoiCC_Click(object sender, RoutedEventArgs e) =>
             BrowseImage("Seleziona Maschera ROI CC", TxtPathRoiCC, ImgThumbRoiCC);

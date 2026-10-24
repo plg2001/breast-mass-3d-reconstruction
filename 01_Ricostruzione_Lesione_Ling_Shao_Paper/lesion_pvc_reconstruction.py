@@ -1146,31 +1146,55 @@ class PipelineRunner:
 
 def main():
     script_dir = Path(__file__).resolve().parent
-    data_root = script_dir / "data"
+    repo_data_root = script_dir.parent / "data"
+    local_data_root = script_dir / "data"
+    data_root = repo_data_root if repo_data_root.exists() else local_data_root
 
     parser = argparse.ArgumentParser(
         description="Partial Volume Compensated 3D Lesion Reconstruction (Ling Shao, 2007)",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--case", default=None, help="Specific patient case name (e.g. 'P_00232' or 'P_01754'). Automatically loads from data/<case> and outputs to output/<case>.")
+    parser.add_argument("--laterality", default=None, choices=["R", "L", "r", "l"], help="Specific breast laterality (R or L).")
+    parser.add_argument("--lesion", default=None, help="Specific lesion identifier (e.g. '1', '2', '3').")
+    parser.add_argument("--data-root", default=str(data_root), help="Path to patient cases directory.")
     parser.add_argument("--all-cases", action="store_true", help="Reconstruct all patient cases found in data/ sequentially.")
-    parser.add_argument("--r-cc", default=None, help="Custom path to R-CC mammogram.")
-    parser.add_argument("--r-mlo", default=None, help="Custom path to R-MLO mammogram.")
-    parser.add_argument("--roi-cc", default=None, help="Custom path to ROI-R-CC mask.")
-    parser.add_argument("--roi-mlo", default=None, help="Custom path to ROI-R-MLO mask.")
+    parser.add_argument("--r-cc", default=None, help="Custom path to CC mammogram.")
+    parser.add_argument("--r-mlo", default=None, help="Custom path to MLO mammogram.")
+    parser.add_argument("--roi-cc", default=None, help="Custom path to ROI CC mask.")
+    parser.add_argument("--roi-mlo", default=None, help="Custom path to ROI MLO mask.")
     parser.add_argument("--output-dir", default=None, help="Directory for output meshes and figures (defaults to output/<case_name>).")
     parser.add_argument("--mlo-angle", type=float, default=45.0, help="MLO projection tilt angle in degrees.")
     parser.add_argument("--grid-resolution", type=int, default=140, help="Voxel grid resolution along each axis.")
     parser.add_argument("--voxel-size-mm", type=float, default=0.1, help="Voxel size in mm.")
 
     args = parser.parse_args()
+    data_root = Path(args.data_root)
+
+    def find_case_paths(case_path: Path, target_lat: str = None, target_lesion: str = None):
+        lats = [target_lat.upper()] if target_lat else ["L", "R"]
+        for lat in lats:
+            suffixes = [f"_{target_lesion}"] if (target_lesion and str(target_lesion) != "1") else ([""] if target_lesion == "1" else ["", "_2", "_3", "_4", "_5"])
+            for sfx in suffixes:
+                roi_cc = case_path / f"ROI-{lat}-CC{sfx}.jpg"
+                roi_mlo = case_path / f"ROI-{lat}-MLO{sfx}.jpg"
+                if roi_cc.exists() and roi_mlo.exists():
+                    cc = case_path / f"{lat}-CC{sfx}.jpg"
+                    if not cc.exists(): cc = case_path / f"{lat}-CC.jpg"
+                    mlo = case_path / f"{lat}-MLO{sfx}.jpg"
+                    if not mlo.exists(): mlo = case_path / f"{lat}-MLO.jpg"
+                    if cc.exists() and mlo.exists():
+                        return cc, mlo, roi_cc, roi_mlo
+        return None, None, None, None
 
     # Discover available patient subfolders in data/
     available_cases = []
     if data_root.exists():
         for d in sorted(data_root.iterdir()):
-            if d.is_dir() and (d / "R-CC.jpg").exists():
-                available_cases.append(d.name)
+            if d.is_dir():
+                c, m, rc, rm = find_case_paths(d)
+                if c is not None:
+                    available_cases.append(d.name)
 
     if args.all_cases:
         if not available_cases:
@@ -1184,11 +1208,12 @@ def main():
             case_out = (script_dir / "output" / cname) if args.output_dir is None else (Path(args.output_dir) / cname)
             logger.info(f"\n{'='*70}\nPROCESSING PATIENT CASE: {cname}\n{'='*70}")
             runner = PipelineRunner(output_dir=case_out)
+            c, m, rc, rm = find_case_paths(case_dir)
             rep = runner.run(
-                r_cc_path=case_dir / "R-CC.jpg",
-                r_mlo_path=case_dir / "R-MLO.jpg",
-                roi_cc_path=case_dir / "ROI-R-CC.jpg",
-                roi_mlo_path=case_dir / "ROI-R-MLO.jpg",
+                r_cc_path=c or (case_dir / "R-CC.jpg"),
+                r_mlo_path=m or (case_dir / "R-MLO.jpg"),
+                roi_cc_path=rc or (case_dir / "ROI-R-CC.jpg"),
+                roi_mlo_path=rm or (case_dir / "ROI-R-MLO.jpg"),
                 mlo_angle_deg=args.mlo_angle,
                 grid_resolution=args.grid_resolution,
                 voxel_size_mm=args.voxel_size_mm,
@@ -1209,18 +1234,35 @@ def main():
 
     if selected_case:
         case_dir = data_root / selected_case
-        r_cc = args.r_cc or str(case_dir / "R-CC.jpg")
-        r_mlo = args.r_mlo or str(case_dir / "R-MLO.jpg")
-        roi_cc = args.roi_cc or str(case_dir / "ROI-R-CC.jpg")
-        roi_mlo = args.roi_mlo or str(case_dir / "ROI-R-MLO.jpg")
-        out_dir = args.output_dir or str(script_dir / "output" / selected_case)
+        c, m, rc, rm = find_case_paths(case_dir, args.laterality, args.lesion)
+        r_cc = args.r_cc or str(c or (case_dir / "R-CC.jpg"))
+        r_mlo = args.r_mlo or str(m or (case_dir / "R-MLO.jpg"))
+        roi_cc = args.roi_cc or str(rc or (case_dir / "ROI-R-CC.jpg"))
+        roi_mlo = args.roi_mlo or str(rm or (case_dir / "ROI-R-MLO.jpg"))
+        
+        subname = selected_case
+        if args.laterality or args.lesion:
+            suffix_parts = []
+            if args.laterality:
+                suffix_parts.append(args.laterality.upper())
+            if args.lesion:
+                suffix_parts.append(str(args.lesion))
+            subname = f"{selected_case}_{'_'.join(suffix_parts)}"
+        out_dir = args.output_dir or str(script_dir / "output" / subname)
     else:
-        r_cc = args.r_cc or str(data_root / "R-CC.jpg")
-        r_mlo = args.r_mlo or str(data_root / "R-MLO.jpg")
-        roi_cc = args.roi_cc or str(data_root / "ROI-R-CC.jpg")
-        roi_mlo = args.roi_mlo or str(data_root / "ROI-R-MLO.jpg")
-        # Try to infer patient ID from path if present
-        inferred_case = Path(r_cc).parent.name if Path(r_cc).parent.name != "data" else "default"
+        c, m, rc, rm = find_case_paths(data_root, args.laterality, args.lesion)
+        r_cc = args.r_cc or str(c or (data_root / "R-CC.jpg"))
+        r_mlo = args.r_mlo or str(m or (data_root / "R-MLO.jpg"))
+        roi_cc = args.roi_cc or str(rc or (data_root / "ROI-R-CC.jpg"))
+        roi_mlo = args.roi_mlo or str(rm or (data_root / "ROI-R-MLO.jpg"))
+        # Try to infer patient ID from path or output_dir
+        inferred_case = "default"
+        if args.output_dir:
+            out_base = Path(args.output_dir).name
+            if out_base.startswith("P_"):
+                inferred_case = out_base
+        if inferred_case == "default" and Path(r_cc).parent.name != "data":
+            inferred_case = Path(r_cc).parent.name
         out_dir = args.output_dir or str(script_dir / "output" / inferred_case)
 
     runner = PipelineRunner(output_dir=out_dir)

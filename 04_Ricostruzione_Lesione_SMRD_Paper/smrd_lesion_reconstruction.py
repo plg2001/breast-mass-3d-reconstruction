@@ -40,12 +40,18 @@ def real_sph_harm(l: int, m: int, theta: np.ndarray, phi: np.ndarray) -> np.ndar
     theta: angolo polare [0, pi]
     phi: angolo azimutale [0, 2*pi)
     """
-    if m > 0:
-        return np.sqrt(2.0) * ((-1.0)**m) * np.real(sp.sph_harm_y(l, m, theta, phi))
-    elif m < 0:
-        return np.sqrt(2.0) * ((-1.0)**abs(m)) * np.imag(sp.sph_harm_y(l, abs(m), theta, phi))
+    if hasattr(sp, 'sph_harm_y'):
+        harmonic_fn = lambda _l, _m, _th, _ph: sp.sph_harm_y(_l, _m, _th, _ph)
     else:
-        return np.real(sp.sph_harm_y(l, 0, theta, phi))
+        # scipy < 1.15: sph_harm(m, l, azimuth, polar)
+        harmonic_fn = lambda _l, _m, _th, _ph: sp.sph_harm(_m, _l, _ph, _th)
+
+    if m > 0:
+        return np.sqrt(2.0) * ((-1.0)**m) * np.real(harmonic_fn(l, m, theta, phi))
+    elif m < 0:
+        return np.sqrt(2.0) * ((-1.0)**abs(m)) * np.imag(harmonic_fn(l, abs(m), theta, phi))
+    else:
+        return np.real(harmonic_fn(l, 0, theta, phi))
 
 class SMRDReconstructor:
     def __init__(self,
@@ -500,16 +506,45 @@ def run_single_case(roi_cc_path: str, roi_mlo_path: str, output_dir: str, beta_d
     print("PIPELINE COMPLETED SUCCESSFULLY", flush=True)
     return metrics
 
-def run_patient(patient_id: str, data_dir: str, output_dir: str, beta_deg: float = 45.0):
+def find_patient_rois(p_data: str, target_lat: str = None, target_lesion: str = None):
+    """
+    Individua una coppia coerente di ROI CC e MLO per lo stesso seno e lesione.
+    """
+    lats = [target_lat.upper()] if target_lat else ["L", "R"]
+    for lat in lats:
+        suffixes = [f"_{target_lesion}"] if (target_lesion and str(target_lesion) != "1") else ([""] if target_lesion == "1" else ["", "_2", "_3", "_4", "_5"])
+        for sfx in suffixes:
+            roi_cc = os.path.join(p_data, f"ROI-{lat}-CC{sfx}.jpg")
+            roi_mlo = os.path.join(p_data, f"ROI-{lat}-MLO{sfx}.jpg")
+            if os.path.exists(roi_cc) and os.path.exists(roi_mlo):
+                les_id = str(target_lesion) if (target_lesion and str(target_lesion) != "1") else (sfx.replace("_", "") if sfx else "1")
+                return roi_cc, roi_mlo, lat, les_id
+    return None, None, None, None
+
+def run_patient(patient_id: str, data_dir: str, output_dir: str, beta_deg: float = 45.0, laterality: str = None, lesion: str = None):
     p_data = os.path.join(data_dir, patient_id)
-    roi_cc_path = os.path.join(p_data, 'ROI-R-CC.jpg')
-    roi_mlo_path = os.path.join(p_data, 'ROI-R-MLO.jpg')
-    p_out = os.path.join(output_dir, patient_id)
-    return run_single_case(roi_cc_path, roi_mlo_path, p_out, beta_deg=beta_deg, patient_id=patient_id)
+    roi_cc_path, roi_mlo_path, lat, les_id = find_patient_rois(p_data, laterality, lesion)
+    if not roi_cc_path or not roi_mlo_path:
+        print(f"[ERRORE] Nessuna coppia completa ROI (CC+MLO) trovata per il paziente {patient_id} (lat={laterality}, les={lesion})")
+        return None
+
+    subname = patient_id
+    if laterality or lesion:
+        suffix_parts = []
+        if lat:
+            suffix_parts.append(lat)
+        if les_id:
+            suffix_parts.append(les_id)
+        subname = f"{patient_id}_{'_'.join(suffix_parts)}"
+
+    p_out = os.path.join(output_dir, subname)
+    return run_single_case(roi_cc_path, roi_mlo_path, p_out, beta_deg=beta_deg, patient_id=subname)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Ricostruzione 3D Lesione Mammaria SMRD (De Sisternes et al. 2015)")
     parser.add_argument('--patient', type=str, default=None, help="ID del paziente (es. P_00232 o 'all')")
+    parser.add_argument('--laterality', type=str, default=None, choices=['R', 'L', 'r', 'l'], help="Lateralità seno (R o L)")
+    parser.add_argument('--lesion', type=str, default=None, help="Identificativo lesione (es. 1, 2, 3)")
     parser.add_argument('--beta', '--mlo-angle', dest='beta', type=float, default=45.0, help="Angolo di proiezione MLO in gradi (default: 45.0)")
     parser.add_argument('--roi-cc', '--roi_cc', dest='roi_cc', type=str, default=None, help="Percorso file ROI CC")
     parser.add_argument('--roi-mlo', '--roi_mlo', dest='roi_mlo', type=str, default=None, help="Percorso file ROI MLO")
@@ -521,7 +556,9 @@ if __name__ == '__main__':
     parser.add_argument('--output_dir', '--output-dir', dest='output_dir', type=str, default=None, help="Cartella output")
     args = parser.parse_args()
 
-    default_data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+    repo_data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+    local_data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+    default_data_dir = repo_data_dir if os.path.exists(repo_data_dir) else local_data_dir
     default_output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output")
 
     data_dir = args.data_dir if args.data_dir else default_data_dir
@@ -534,20 +571,24 @@ if __name__ == '__main__':
         if args.patient:
             pat_id = args.patient
         else:
-            # Prova a dedurre il nome della cartella padre
-            p_cand = os.path.basename(os.path.dirname(os.path.abspath(args.roi_cc)))
-            if p_cand and p_cand.startswith("P_"):
-                pat_id = p_cand
+            # Prova a dedurre il nome dal percorso di output (es. P_00004_L_1) o dalla cartella genitrice
+            out_base = os.path.basename(os.path.normpath(output_dir))
+            if out_base and out_base.startswith("P_"):
+                pat_id = out_base
+            else:
+                p_cand = os.path.basename(os.path.dirname(os.path.abspath(args.roi_cc)))
+                if p_cand and p_cand.startswith("P_"):
+                    pat_id = p_cand
         run_single_case(args.roi_cc, args.roi_mlo, output_dir, beta_deg=args.beta, patient_id=pat_id)
     elif args.patient and args.patient.lower() != 'all':
-        run_patient(args.patient, data_dir, output_dir, args.beta)
+        run_patient(args.patient, data_dir, output_dir, args.beta, args.laterality, args.lesion)
     else:
         # 'all' o non specificato -> batch su tutti i pazienti
         patients = [d for d in os.listdir(data_dir) if os.path.isdir(os.path.join(data_dir, d))]
         print(f"Trovati {len(patients)} pazienti: {patients}")
         all_metrics = {}
         for p in patients:
-            m = run_patient(p, data_dir, output_dir, args.beta)
+            m = run_patient(p, data_dir, output_dir, args.beta, args.laterality, args.lesion)
             if m:
                 all_metrics[p] = m
 
