@@ -13,20 +13,22 @@ Tesi/
 │   ├── open_in_blender.bat            # Apertura immediata della lesione in Blender
 │   └── README.md                      # Dettagli matematici e benchmark del paper
 │
-├── 02_Ricostruzione_Mammella_3D/      # [MODULO SEPARATO] Ricostruzione 3D della Mammella (Precedente)
-│   ├── breast_reconstruction.py       # Algoritmo per la sagoma volumetrica della mammella
-│   └── README.md                      # Note: modulo isolato, NON integrato con la lesione
-│
-├── 03_Applicazione_GUI_CSharp/        # [MODULO APPLICAZIONE] Interfaccia Grafica e Unity
+├── 02_Applicazione_GUI_CSharp/        # [MODULO APPLICAZIONE] Interfaccia Grafica e Unity
 │   ├── Mammography3D_Solution.sln     # Soluzione C#
 │   ├── Mammography3D.Desktop/         # Codice sorgente GUI WPF (.NET 8)
 │   ├── Mammography3D.Core/            # Modelli, servizi e script pronti per Unity / VR
 │   ├── Mammography3D_App/             # Applicazione compilata pronta all'uso
 │   └── Mammography3D.bat              # Launcher locale dell'app
 │
-├── 04_Paper_e_Documenti/              # [DOCUMENTAZIONE] Letteratura e proposta di tesi
+├── 03_Paper_e_Documenti/              # [DOCUMENTAZIONE] Letteratura e proposta di tesi
 │   ├── proposta_idea_tesi_visore_edge.pdf # Proposta di tesi per visore Android / Edge
 │   └── (Articoli scientifici PDF)
+│
+├── 04_Ricostruzione_Lesione_SMRD_Paper/ # [BENCHMARK] Modello SMRD (De Sisternes et al. 2015)
+│   ├── smrd_lesion_reconstruction.py  # Algoritmo SMRD avanzato
+│   ├── compare_ling_shao_vs_smrd.py   # Confronto quantitativo vs Ling Shao
+│   ├── run_smrd.bat                   # Launcher pipeline SMRD
+│   └── README.md                      # Dettagli matematici e benchmark clinico
 │
 ├── Mammography3D.bat                  # 🚀 Launcher principale rapido nella radice
 └── README.md                          # Questo file

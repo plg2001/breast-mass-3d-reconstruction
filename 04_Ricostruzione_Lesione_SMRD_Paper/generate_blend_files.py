@@ -5,7 +5,7 @@ blender_exe = r"C:\Users\Pierluca\OneDrive\Documenti\Blender\blender.exe"
 if not os.path.exists(blender_exe):
     blender_exe = r"Blender\blender.exe"
 
-base_dir = r"c:\Users\Pierluca\Desktop\Tesi\05_Ricostruzione_Lesione_SMRD_Paper\output"
+base_dir = r"c:\Users\Pierluca\Desktop\Tesi\04_Ricostruzione_Lesione_SMRD_Paper\output"
 
 for p in ["P_00232", "P_01226", "P_01754"]:
     glb_path = os.path.join(base_dir, p, f"{p}_smrd_lesion.glb")

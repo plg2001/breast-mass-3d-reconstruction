@@ -380,17 +380,17 @@ namespace Mammography3D.Core.Services
 
             if (algorithm == ReconstructionAlgorithm.SMRD_2015)
             {
-                string smrdCandidate = Path.Combine(repoRoot, "05_Ricostruzione_Lesione_SMRD_Paper", "smrd_lesion_reconstruction.py");
+                string smrdCandidate = Path.Combine(repoRoot, "04_Ricostruzione_Lesione_SMRD_Paper", "smrd_lesion_reconstruction.py");
                 if (File.Exists(smrdCandidate))
                     return smrdCandidate;
 
                 var smrdCandidates = new[]
                 {
-                    Path.Combine(baseDir, "..", "05_Ricostruzione_Lesione_SMRD_Paper", "smrd_lesion_reconstruction.py"),
-                    Path.Combine(baseDir, "..", "..", "05_Ricostruzione_Lesione_SMRD_Paper", "smrd_lesion_reconstruction.py"),
-                    Path.Combine(baseDir, "05_Ricostruzione_Lesione_SMRD_Paper", "smrd_lesion_reconstruction.py"),
-                    @"c:\Users\Pierluca\Desktop\breast-mass-3d-reconstruction\05_Ricostruzione_Lesione_SMRD_Paper\smrd_lesion_reconstruction.py",
-                    @"c:\Users\Pierluca\Desktop\Tesi\05_Ricostruzione_Lesione_SMRD_Paper\smrd_lesion_reconstruction.py"
+                    Path.Combine(baseDir, "..", "04_Ricostruzione_Lesione_SMRD_Paper", "smrd_lesion_reconstruction.py"),
+                    Path.Combine(baseDir, "..", "..", "04_Ricostruzione_Lesione_SMRD_Paper", "smrd_lesion_reconstruction.py"),
+                    Path.Combine(baseDir, "04_Ricostruzione_Lesione_SMRD_Paper", "smrd_lesion_reconstruction.py"),
+                    @"c:\Users\Pierluca\Desktop\breast-mass-3d-reconstruction\04_Ricostruzione_Lesione_SMRD_Paper\smrd_lesion_reconstruction.py",
+                    @"c:\Users\Pierluca\Desktop\Tesi\04_Ricostruzione_Lesione_SMRD_Paper\smrd_lesion_reconstruction.py"
                 };
 
                 foreach (var c in smrdCandidates)

@@ -102,7 +102,7 @@ namespace Mammography3D.Desktop
             var dataRoots = new[]
             {
                 Path.Combine(repoRoot, "01_Ricostruzione_Lesione_3D", "data"),
-                Path.Combine(repoRoot, "05_Ricostruzione_Lesione_SMRD_Paper", "data")
+                Path.Combine(repoRoot, "04_Ricostruzione_Lesione_SMRD_Paper", "data")
             };
 
             var patientsFound = new System.Collections.Generic.HashSet<string>();
@@ -201,11 +201,11 @@ namespace Mammography3D.Desktop
             string patientDataDir = Path.Combine(repoRoot, "01_Ricostruzione_Lesione_3D", "data", patientId);
             if (!Directory.Exists(patientDataDir))
             {
-                patientDataDir = Path.Combine(repoRoot, "05_Ricostruzione_Lesione_SMRD_Paper", "data", patientId);
+                patientDataDir = Path.Combine(repoRoot, "04_Ricostruzione_Lesione_SMRD_Paper", "data", patientId);
             }
 
             string patientOutputDir = isSmrd
-                ? Path.Combine(repoRoot, "05_Ricostruzione_Lesione_SMRD_Paper", "output", patientId)
+                ? Path.Combine(repoRoot, "04_Ricostruzione_Lesione_SMRD_Paper", "output", patientId)
                 : Path.Combine(repoRoot, "01_Ricostruzione_Lesione_3D", "output", patientId);
 
             if (TxtSelectedPatientBadge != null)

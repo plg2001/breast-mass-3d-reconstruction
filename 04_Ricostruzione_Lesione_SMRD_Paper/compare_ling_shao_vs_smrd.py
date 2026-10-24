@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 
 def compare_models(patient_id="P_00232"):
     dir_ling_shao = rf"c:\Users\Pierluca\Desktop\Tesi\01_Ricostruzione_Lesione_3D\output\{patient_id}"
-    dir_smrd = rf"c:\Users\Pierluca\Desktop\Tesi\05_Ricostruzione_Lesione_SMRD_Paper\output\{patient_id}"
+    dir_smrd = rf"c:\Users\Pierluca\Desktop\Tesi\04_Ricostruzione_Lesione_SMRD_Paper\output\{patient_id}"
 
     path_shao = os.path.join(dir_ling_shao, "meshes", "lesion_reconstructed.obj")
     path_smrd = os.path.join(dir_smrd, f"{patient_id}_smrd_lesion.obj")
@@ -112,7 +112,7 @@ def compare_models(patient_id="P_00232"):
     )
     ax6.text(0.05, 0.5, txt_smrd, color='#3fb950', fontsize=10, family='monospace', verticalalignment='center')
 
-    out_comp = rf"c:\Users\Pierluca\Desktop\Tesi\05_Ricostruzione_Lesione_SMRD_Paper\output\comparison_ling_shao_vs_smrd_{patient_id}.png"
+    out_comp = rf"c:\Users\Pierluca\Desktop\Tesi\04_Ricostruzione_Lesione_SMRD_Paper\output\comparison_ling_shao_vs_smrd_{patient_id}.png"
     plt.tight_layout(rect=[0, 0, 1, 0.95])
     plt.savefig(out_comp, dpi=200, facecolor=fig.get_facecolor(), edgecolor='none')
     plt.close()
