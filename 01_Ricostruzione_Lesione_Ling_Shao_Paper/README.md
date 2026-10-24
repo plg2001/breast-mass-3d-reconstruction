@@ -10,7 +10,7 @@ Implementa la totalità della formulazione matematica presentata nel paper:
 ## 📁 Contenuto della Cartella
 
 ```
-01_Ricostruzione_Lesione_3D/
+01_Ricostruzione_Lesione_Ling_Shao_Paper/
 ├── data/                                 # Mammografie e maschere ROI della lesione
 │   ├── R-CC.jpg                          # Vista Cranio-Caudale
 │   ├── R-MLO.jpg                         # Vista Medio-Laterale Obliqua

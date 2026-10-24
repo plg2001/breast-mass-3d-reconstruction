@@ -77,7 +77,8 @@ namespace Mammography3D.Desktop
             string current = AppDomain.CurrentDomain.BaseDirectory;
             for (int i = 0; i < 6; i++)
             {
-                if (Directory.Exists(Path.Combine(current, "01_Ricostruzione_Lesione_3D")))
+                if (Directory.Exists(Path.Combine(current, "01_Ricostruzione_Lesione_Ling_Shao_Paper")) ||
+                    Directory.Exists(Path.Combine(current, "01_Ricostruzione_Lesione_3D")))
                 {
                     return current;
                 }
@@ -101,7 +102,7 @@ namespace Mammography3D.Desktop
             string repoRoot = FindRepoRoot();
             var dataRoots = new[]
             {
-                Path.Combine(repoRoot, "01_Ricostruzione_Lesione_3D", "data"),
+                Path.Combine(repoRoot, "01_Ricostruzione_Lesione_Ling_Shao_Paper", "data"),
                 Path.Combine(repoRoot, "04_Ricostruzione_Lesione_SMRD_Paper", "data")
             };
 
@@ -198,7 +199,11 @@ namespace Mammography3D.Desktop
             string repoRoot = FindRepoRoot();
             bool isSmrd = CmbAlgorithm == null || CmbAlgorithm.SelectedIndex != 1;
 
-            string patientDataDir = Path.Combine(repoRoot, "01_Ricostruzione_Lesione_3D", "data", patientId);
+            string patientDataDir = Path.Combine(repoRoot, "01_Ricostruzione_Lesione_Ling_Shao_Paper", "data", patientId);
+            if (!Directory.Exists(patientDataDir))
+            {
+                patientDataDir = Path.Combine(repoRoot, "01_Ricostruzione_Lesione_3D", "data", patientId);
+            }
             if (!Directory.Exists(patientDataDir))
             {
                 patientDataDir = Path.Combine(repoRoot, "04_Ricostruzione_Lesione_SMRD_Paper", "data", patientId);
@@ -206,7 +211,7 @@ namespace Mammography3D.Desktop
 
             string patientOutputDir = isSmrd
                 ? Path.Combine(repoRoot, "04_Ricostruzione_Lesione_SMRD_Paper", "output", patientId)
-                : Path.Combine(repoRoot, "01_Ricostruzione_Lesione_3D", "output", patientId);
+                : Path.Combine(repoRoot, "01_Ricostruzione_Lesione_Ling_Shao_Paper", "output", patientId);
 
             if (TxtSelectedPatientBadge != null)
                 TxtSelectedPatientBadge.Text = $"output/{patientId} ({(isSmrd ? "SMRD" : "Ling Shao")})";

@@ -359,7 +359,8 @@ namespace Mammography3D.Core.Services
             string current = AppDomain.CurrentDomain.BaseDirectory;
             for (int i = 0; i < 6; i++)
             {
-                if (Directory.Exists(Path.Combine(current, "01_Ricostruzione_Lesione_3D")))
+                if (Directory.Exists(Path.Combine(current, "01_Ricostruzione_Lesione_Ling_Shao_Paper")) ||
+                    Directory.Exists(Path.Combine(current, "01_Ricostruzione_Lesione_3D")))
                 {
                     return current;
                 }
@@ -399,17 +400,20 @@ namespace Mammography3D.Core.Services
                 }
             }
 
-            string candidate = Path.Combine(repoRoot, "01_Ricostruzione_Lesione_3D", "lesion_pvc_reconstruction.py");
+            string candidate = Path.Combine(repoRoot, "01_Ricostruzione_Lesione_Ling_Shao_Paper", "lesion_pvc_reconstruction.py");
             if (File.Exists(candidate))
                 return candidate;
 
             var candidates = new[]
             {
+                Path.Combine(baseDir, "..", "01_Ricostruzione_Lesione_Ling_Shao_Paper", "lesion_pvc_reconstruction.py"),
+                Path.Combine(baseDir, "..", "..", "01_Ricostruzione_Lesione_Ling_Shao_Paper", "lesion_pvc_reconstruction.py"),
+                Path.Combine(baseDir, "01_Ricostruzione_Lesione_Ling_Shao_Paper", "lesion_pvc_reconstruction.py"),
+                @"c:\Users\Pierluca\Desktop\breast-mass-3d-reconstruction\01_Ricostruzione_Lesione_Ling_Shao_Paper\lesion_pvc_reconstruction.py",
+                @"c:\Users\Pierluca\Desktop\Tesi\01_Ricostruzione_Lesione_Ling_Shao_Paper\lesion_pvc_reconstruction.py",
+                // Fallback precedenti
                 Path.Combine(baseDir, "..", "01_Ricostruzione_Lesione_3D", "lesion_pvc_reconstruction.py"),
-                Path.Combine(baseDir, "..", "..", "01_Ricostruzione_Lesione_3D", "lesion_pvc_reconstruction.py"),
-                Path.Combine(baseDir, "01_Ricostruzione_Lesione_3D", "lesion_pvc_reconstruction.py"),
-                @"c:\Users\Pierluca\Desktop\breast-mass-3d-reconstruction\01_Ricostruzione_Lesione_3D\lesion_pvc_reconstruction.py",
-                @"c:\Users\Pierluca\Desktop\Tesi\01_Ricostruzione_Lesione_3D\lesion_pvc_reconstruction.py"
+                @"c:\Users\Pierluca\Desktop\breast-mass-3d-reconstruction\01_Ricostruzione_Lesione_3D\lesion_pvc_reconstruction.py"
             };
 
             foreach (var c in candidates)
@@ -421,7 +425,7 @@ namespace Mammography3D.Core.Services
                 catch { }
             }
 
-            return @"c:\Users\Pierluca\Desktop\breast-mass-3d-reconstruction\01_Ricostruzione_Lesione_3D\lesion_pvc_reconstruction.py";
+            return @"c:\Users\Pierluca\Desktop\breast-mass-3d-reconstruction\01_Ricostruzione_Lesione_Ling_Shao_Paper\lesion_pvc_reconstruction.py";
         }
 
         private static ReconstructionResult ParseReport(string outputDir, double executionTime)

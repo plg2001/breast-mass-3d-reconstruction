@@ -12,7 +12,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 def compare_models(patient_id="P_00232"):
-    dir_ling_shao = rf"c:\Users\Pierluca\Desktop\Tesi\01_Ricostruzione_Lesione_3D\output\{patient_id}"
+    dir_ling_shao = rf"c:\Users\Pierluca\Desktop\Tesi\01_Ricostruzione_Lesione_Ling_Shao_Paper\output\{patient_id}"
+    if not os.path.exists(dir_ling_shao):
+        dir_ling_shao = rf"c:\Users\Pierluca\Desktop\breast-mass-3d-reconstruction\01_Ricostruzione_Lesione_Ling_Shao_Paper\output\{patient_id}"
     dir_smrd = rf"c:\Users\Pierluca\Desktop\Tesi\04_Ricostruzione_Lesione_SMRD_Paper\output\{patient_id}"
 
     path_shao = os.path.join(dir_ling_shao, "meshes", "lesion_reconstructed.obj")
