@@ -4,12 +4,14 @@
 Ricostruzione 3D Anatomica della Mammella (Skin Envelope) da Mammografie CC ed MLO
 ========================================================================================
 Genera una superficie 3D esterna fotorealistica, anatomica e priva di artefatti:
+- Supporto per qualunque paziente (ID selezionabile da riga di comando o interattivo)
+- Rilevamento automatico di vista Destra (R-CC/R-MLO) o Sinistra (L-CC/L-MLO)
 - Profilo a goccia organico estratto via ray-marching dal capezzolo (zero vuoto interno)
-- Proporzioni anatomiche realistiche (Larghezza ~15 cm, Altezza ~16 cm, Profondità ~10 cm)
+- Proporzioni anatomiche realistiche (Larghezza ~15-19 cm, Altezza ~16-20 cm, Profondità ~10 cm)
 - Base retromammaria chiusa a cupola convessa morbida (come nel Riquadro 6 del paper)
 - Piani radiografici ortogonali 2D (CC ed MLO) perfettamente aderenti all'involucro cutaneo
 - Shading Alabaster Ghost semitrasparente con reticolo Wireframe sottile
-- 5 Telecamere cliniche pre-configurate conformi alla figura di riferimento
+- 5 Telecamere cliniche pre-configurate conformi alla figura di riferimento del paper
 """
 
 import os
@@ -24,69 +26,137 @@ from scipy.ndimage import gaussian_filter1d
 
 BLENDER_EXE = r"C:\Users\Pierluca\OneDrive\Documenti\Blender\blender.exe"
 
-def extract_organic_profiles(cc_path, mlo_path, target_depth_mm=105.0):
+def find_mammogram_pair(data_dir, patient_id):
+    """
+    Individua automaticamente la coppia di immagini CC ed MLO per il paziente specificato,
+    supportando sia seno destro (R) che sinistro (L) e vari formati (.jpg, .png, .dcm).
+    """
+    candidate_dirs = [
+        os.path.join(data_dir, patient_id),
+        os.path.join("..", data_dir, patient_id),
+        os.path.join(os.path.dirname(__file__), "..", data_dir, patient_id)
+    ]
+    patient_dir = None
+    for cd in candidate_dirs:
+        if os.path.isdir(cd):
+            patient_dir = cd
+            break
+
+    if patient_dir is None:
+        raise FileNotFoundError(f"Cartella del paziente '{patient_id}' non trovata in {data_dir}")
+
+    # Priorità 1: file standard R o L (.jpg, .png, .dcm)
+    for ext in [".jpg", ".png", ".dcm", ".jpeg"]:
+        for lat in ["R", "L"]:
+            cc = os.path.join(patient_dir, f"{lat}-CC{ext}")
+            mlo = os.path.join(patient_dir, f"{lat}-MLO{ext}")
+            if os.path.exists(cc) and os.path.exists(mlo):
+                return lat, os.path.abspath(cc), os.path.abspath(mlo)
+
+    # Priorità 2: ricerca flessibile per nome file (evitando le ROI)
+    files = os.listdir(patient_dir)
+    cc_files = [f for f in files if "cc" in f.lower() and not f.lower().startswith("roi")]
+    mlo_files = [f for f in files if "mlo" in f.lower() and not f.lower().startswith("roi")]
+
+    if cc_files and mlo_files:
+        lat = "R" if "r-" in cc_files[0].lower() else ("L" if "l-" in cc_files[0].lower() else "R")
+        return lat, os.path.abspath(os.path.join(patient_dir, cc_files[0])), os.path.abspath(os.path.join(patient_dir, mlo_files[0]))
+
+    raise FileNotFoundError(f"Nessuna coppia di mammografie CC + MLO trovata per il paziente '{patient_id}' in {patient_dir}")
+
+def extract_single_view(image_path):
+    """
+    Estrae l'immagine ridimensionata, la maschera del tessuto, l'orientamento della parete
+    toracica e la posizione automatica del capezzolo.
+    """
+    img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+    if img is None:
+        raise FileNotFoundError(f"Impossibile aprire l'immagine: {image_path}")
+
+    h_orig, w_orig = img.shape
+    scale = 600.0 / max(h_orig, w_orig)
+    small = cv2.resize(img, (int(w_orig * scale), int(h_orig * scale)))
+    h_s, w_s = small.shape
+
+    # Pulizia bordi
+    clean = small.copy()
+    clean[:15, :] = 0; clean[-15:, :] = 0; clean[:, :15] = 0; clean[:, -15:] = 0
+
+    _, bin_img = cv2.threshold(clean, 20, 255, cv2.THRESH_BINARY)
+    k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+    opened = cv2.morphologyEx(bin_img, cv2.MORPH_OPEN, k)
+    num, labels, stats, _ = cv2.connectedComponentsWithStats(opened)
+    largest = 1 + np.argmax(stats[1:, cv2.CC_STAT_AREA])
+    mask = (labels == largest).astype(np.uint8)
+
+    is_chest_right = mask[:, 3 * w_s // 4:].mean() > mask[:, :w_s // 4].mean()
+
+    # Identificazione del capezzolo (colonna più lontana dalla parete toracica)
+    cols_tissue = []
+    for r in range(h_s):
+        c = np.where(mask[r, :] > 0)[0]
+        if len(c) > 10:
+            cols_tissue.append((r, c.min() if is_chest_right else c.max()))
+    cols_tissue = np.array(cols_tissue)
+
+    if is_chest_right:
+        nip_idx = np.argmin(cols_tissue[:, 1])
+    else:
+        nip_idx = np.argmax(cols_tissue[:, 1])
+
+    nip_r, nip_c = int(cols_tissue[nip_idx, 0]), int(cols_tissue[nip_idx, 1])
+
+    return small, mask, is_chest_right, nip_r, nip_c
+
+def extract_organic_profiles(cc_path, mlo_path, target_depth_mm=105.0, laterality="R"):
     """
     Estrae i profili cutanei anatomici tramite ray-marching radiale a partire dal capezzolo,
-    eliminando sia il vuoto d'aria anteriore sia gli artefatti del detettore posteriore.
+    funzionando correttamente sia per seni destri (R) che sinistri (L).
     """
-    img_cc = cv2.imread(cc_path, cv2.IMREAD_GRAYSCALE)
-    img_mlo = cv2.imread(mlo_path, cv2.IMREAD_GRAYSCALE)
-    if img_cc is None or img_mlo is None:
-        raise FileNotFoundError("Impossibile aprire le immagini mammografiche CC o MLO.")
+    s_cc, m_cc, chest_right_cc, nip_r_cc, nip_c_cc = extract_single_view(cc_path)
+    s_mlo, m_mlo, chest_right_mlo, nip_r_mlo, nip_c_mlo = extract_single_view(mlo_path)
 
-    scale_cc = 600.0 / max(img_cc.shape)
-    scale_mlo = 600.0 / max(img_mlo.shape)
-
-    s_cc = cv2.resize(img_cc, (int(img_cc.shape[1] * scale_cc), int(img_cc.shape[0] * scale_cc)))
-    s_mlo = cv2.resize(img_mlo, (int(img_mlo.shape[1] * scale_mlo), int(img_mlo.shape[0] * scale_mlo)))
-
-    # Pulizia margini scanner
-    s_cc[:15, :] = 0; s_cc[-15:, :] = 0; s_cc[:, :15] = 0; s_cc[:, -15:] = 0
-    s_mlo[:15, :] = 0; s_mlo[-15:, :] = 0; s_mlo[:, :15] = 0; s_mlo[:, -15:] = 0
-
-    # Coordinate del capezzolo
-    nip_r_mlo, nip_c_mlo = 327, 89
-    nip_r_cc, nip_c_cc = 324, 102
-
-    # Profondità anatomica dal capezzolo al solco retromammario
     depth_px = 160
     mm_per_px = target_depth_mm / float(depth_px)
 
-    # Ray-marching MLO (d = 0 è base retromammaria, d = depth_px è apice capezzolo)
+    # Ray-marching MLO (d = 0 base retromammaria, d = depth_px capezzolo)
     top_mlo, bot_mlo = [], []
     for d in range(depth_px + 1):
-        c = nip_c_mlo + (depth_px - d)
-        col_vals = s_mlo[:, c]
-        
-        # Polo inferiore: segue il profilo fino al solco sottomammario
+        step_from_nip = depth_px - d
+        col = (nip_c_mlo + step_from_nip) if chest_right_mlo else (nip_c_mlo - step_from_nip)
+        col = int(np.clip(col, 0, s_mlo.shape[1] - 1))
+        col_vals = s_mlo[:, col]
+
         b = nip_r_mlo
-        while b < 520 and col_vals[b] > 20:
+        while b < s_mlo.shape[0] - 15 and col_vals[b] > 20:
             b += 1
-            
-        # Polo superiore: pendenza anatomica fisiologica (rapporto aureo 1:1.15 rispetto all'inferiore)
+
         t = nip_r_mlo
-        limit_t = max(120, nip_r_mlo - int(1.12 * (b - nip_r_mlo)))
+        limit_t = max(25, nip_r_mlo - int(1.15 * (b - nip_r_mlo)))
         while t > limit_t and col_vals[t] > 20:
             t -= 1
-            
+
         top_mlo.append(t)
         bot_mlo.append(b)
 
     # Ray-marching CC
     lat_cc, med_cc = [], []
     for d in range(depth_px + 1):
-        c = nip_c_cc + (depth_px - d)
-        col_vals = s_cc[:, c]
-        
+        step_from_nip = depth_px - d
+        col = (nip_c_cc + step_from_nip) if chest_right_cc else (nip_c_cc - step_from_nip)
+        col = int(np.clip(col, 0, s_cc.shape[1] - 1))
+        col_vals = s_cc[:, col]
+
+        # In CC: righe inferiori = mediale, righe superiori = laterale
         m = nip_r_cc
-        while m < 525 and col_vals[m] > 20:
+        while m < s_cc.shape[0] - 15 and col_vals[m] > 20:
             m += 1
-            
+
         l = nip_r_cc
-        limit_l = max(125, nip_r_cc - int(1.05 * (m - nip_r_cc)))
+        limit_l = max(25, nip_r_cc - int(1.10 * (m - nip_r_cc)))
         while l > limit_l and col_vals[l] > 20:
             l -= 1
-            
+
         lat_cc.append(l)
         med_cc.append(m)
 
@@ -98,8 +168,11 @@ def extract_organic_profiles(cc_path, mlo_path, target_depth_mm=105.0):
     return {
         'orig_cc_path': os.path.abspath(cc_path),
         'orig_mlo_path': os.path.abspath(mlo_path),
+        'laterality': laterality,
         's_cc_shape': s_cc.shape,
         's_mlo_shape': s_mlo.shape,
+        'chest_right_cc': chest_right_cc,
+        'chest_right_mlo': chest_right_mlo,
         'nip_r_mlo': nip_r_mlo, 'nip_c_mlo': nip_c_mlo,
         'nip_r_cc': nip_r_cc, 'nip_c_cc': nip_c_cc,
         'depth_px': depth_px,
@@ -117,23 +190,29 @@ def build_teardrop_anatomical_mesh(data, num_slices=90, num_radial=64):
     depth_mm = data['target_depth_mm']
     mm_per_px = data['mm_per_px']
     depth_px = data['depth_px']
+    is_left = (data['laterality'] == "L")
 
     t_samples = np.linspace(0.0, 1.0, num_slices)
 
     # Chiusura a cupola convessa posteriore per t in [0.0, 0.22] (spazio retromammario naturale)
     post_cap = np.where(t_samples < 0.22, np.sin((t_samples / 0.22) * (np.pi / 2.0)), 1.0)
 
-    # Fattore di decompressione fisiologica per ripristinare la forma eretta naturale
-    # (nelle mammografie il seno è compresso da piastre; compensiamo per ottenere forma a goccia perfetta)
+    # Fattore di decompressione fisiologica
     decomp_scale = 0.76
 
     idx = np.clip((t_samples * depth_px).astype(int), 0, depth_px)
 
+    # Segno per orientamento asse X laterale/mediale
+    x_sign = -1.0 if is_left else 1.0
+
     # CC: asse X (Mediale / Laterale)
-    X_lat = (data['nip_r_cc'] - data['lat_cc'][idx]) * mm_per_px * post_cap * decomp_scale
-    X_med = (data['nip_r_cc'] - data['med_cc'][idx]) * mm_per_px * post_cap * decomp_scale
+    X_lat = x_sign * (data['nip_r_cc'] - data['lat_cc'][idx]) * mm_per_px * post_cap * decomp_scale
+    X_med = x_sign * (data['nip_r_cc'] - data['med_cc'][idx]) * mm_per_px * post_cap * decomp_scale
+    if is_left:
+        X_lat, X_med = X_med, X_lat
+
     Xc_vals = 0.5 * (X_med + X_lat)
-    W_vals = np.maximum(2.0, X_lat - X_med)
+    W_vals = np.maximum(2.0, np.abs(X_lat - X_med))
 
     # MLO: asse Z (Superiore / Inferiore)
     Z_sup = (data['nip_r_mlo'] - data['top_mlo'][idx]) * mm_per_px * post_cap * decomp_scale
@@ -214,13 +293,16 @@ def generate_blender_scene(blend_path, mesh, data, bounds_cc, bounds_mlo):
     z_inf_chest, z_sup_chest, _ = bounds_mlo
 
     h_c, w_c = data['s_cc_shape']
-    u_chest_cc = float(data['nip_c_cc'] + data['depth_px']) / float(w_c)
+    step_c = data['depth_px']
+    base_c_cc = (data['nip_c_cc'] + step_c) if data['chest_right_cc'] else (data['nip_c_cc'] - step_c)
+    u_chest_cc = float(base_c_cc) / float(w_c)
     u_nip_cc = float(data['nip_c_cc']) / float(w_c)
     v_lat_cc = 1.0 - (float(data['lat_cc'][0]) / float(h_c))
     v_med_cc = 1.0 - (float(data['med_cc'][0]) / float(h_c))
 
     h_m, w_m = data['s_mlo_shape']
-    u_chest_mlo = float(data['nip_c_mlo'] + data['depth_px']) / float(w_m)
+    base_c_mlo = (data['nip_c_mlo'] + step_c) if data['chest_right_mlo'] else (data['nip_c_mlo'] - step_c)
+    u_chest_mlo = float(base_c_mlo) / float(w_m)
     u_nip_mlo = float(data['nip_c_mlo']) / float(w_m)
     v_sup_mlo = 1.0 - (float(data['top_mlo'][0]) / float(h_m))
     v_inf_mlo = 1.0 - (float(data['bot_mlo'][0]) / float(h_m))
@@ -433,20 +515,33 @@ print("Scena Blender salvata e render generato con successo!")
         print("Scena Blender generata con successo!")
 
 def main():
-    patient_id = "P_00005"
-    out_dir = f"05_Ricostruzione_Mammella_3D/output/{patient_id}"
-    os.makedirs(out_dir, exist_ok=True)
+    parser = argparse.ArgumentParser(description="Ricostruzione 3D Anatomica della Mammella da Mammografie CC ed MLO")
+    parser.add_argument("--patient_id", type=str, default="P_00005", help="ID del paziente (es. P_00005, P_00001)")
+    parser.add_argument("--data_dir", type=str, default="data", help="Percorso della cartella contenente i dati dei pazienti")
+    parser.add_argument("--depth_mm", type=float, default=105.0, help="Profondita anatomica target in mm")
+    args = parser.parse_args()
 
-    cc_path = f"data/{patient_id}/R-CC.jpg"
-    mlo_path = f"data/{patient_id}/R-MLO.jpg"
+    patient_id = args.patient_id.strip()
+    data_dir = args.data_dir
+    depth_mm = args.depth_mm
+
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    out_dir = os.path.join(script_dir, "output", patient_id)
+    os.makedirs(out_dir, exist_ok=True)
 
     print("=" * 80)
     print(f"RICOSTRUZIONE 3D ANATOMICA ORGANICA A GOCCIA - Paziente {patient_id}")
     print("=" * 80)
 
+    # Ricerca automatica delle lastre CC ed MLO
+    laterality, cc_path, mlo_path = find_mammogram_pair(data_dir, patient_id)
+    print(f"  Lateralià rilevata: Seno {'Destro (R)' if laterality == 'R' else 'Sinistro (L)'}")
+    print(f"  CC : {cc_path}")
+    print(f"  MLO: {mlo_path}")
+
     print("\n[1/4] Estrazione profili anatomici via ray-marching dal capezzolo...")
-    data = extract_organic_profiles(cc_path, mlo_path, target_depth_mm=105.0)
-    print(f"  Profondità capezzolo: {data['target_depth_mm']:.1f} mm ({data['depth_px']} px)")
+    data = extract_organic_profiles(cc_path, mlo_path, target_depth_mm=depth_mm, laterality=laterality)
+    print(f"  Profondità anatomica: {data['target_depth_mm']:.1f} mm ({data['depth_px']} px)")
 
     print("\n[2/4] Costruzione mesh 3D anatomica a goccia fisiologica...")
     mesh, bounds_cc, bounds_mlo = build_teardrop_anatomical_mesh(data)
@@ -454,11 +549,11 @@ def main():
     h_mm = bounds_mlo[1] - bounds_mlo[0]
     d_mm = bounds_cc[2]
     print(f"  Mesh generata: {len(mesh.vertices)} vertici, {len(mesh.faces)} triangoli.")
-    print(f"  Dimensioni: Larghezza {w_mm:.1f} mm, Altezza {h_mm:.1f} mm, Profondita {d_mm:.1f} mm")
+    print(f"  Dimensioni: Larghezza {w_mm:.1f} mm, Altezza {h_mm:.1f} mm, Profondità {d_mm:.1f} mm")
 
     obj_path = os.path.join(out_dir, "breast_skin_surface.obj")
-    mesh.export(obj_path)
     glb_path = os.path.join(out_dir, "breast_skin_surface.glb")
+    mesh.export(obj_path)
     mesh.export(glb_path)
     print(f"  File esportati: {obj_path}, {glb_path}")
 
@@ -469,6 +564,7 @@ def main():
     print("\n[4/4] Salvataggio metriche anatomiche...")
     metrics = {
         'patient_id': patient_id,
+        'laterality': laterality,
         'depth_mm': float(d_mm),
         'width_mm': float(w_mm),
         'height_mm': float(h_mm),
@@ -476,9 +572,15 @@ def main():
         'surface_area_cm2': float(mesh.area / 100.0),
         'mm_per_px': float(data['mm_per_px']),
         'vertex_count': len(mesh.vertices),
-        'triangle_count': len(mesh.faces)
+        'triangle_count': len(mesh.faces),
+        'files': {
+            'blend': os.path.abspath(blend_path),
+            'obj': os.path.abspath(obj_path),
+            'glb': os.path.abspath(glb_path),
+            'preview_png': os.path.abspath(blend_path.replace('.blend', '_preview.png'))
+        }
     }
-    with open(os.path.join(out_dir, "surface_metrics.json"), "w") as f:
+    with open(os.path.join(out_dir, "surface_metrics.json"), "w", encoding="utf-8") as f:
         json.dump(metrics, f, indent=2)
 
     print("\n" + "=" * 80)
