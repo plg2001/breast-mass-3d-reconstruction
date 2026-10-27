@@ -5,7 +5,8 @@ echo   SMRD 3D Lesion Reconstruction Pipeline (De Sisternes et al. 2015)
 echo =========================================================================
 echo.
 
-set PYTHON_EXE=C:\Python311\python.exe
+set PYTHON_EXE=C:\Python314\python.exe
+if not exist "%PYTHON_EXE%" set PYTHON_EXE=C:\Python311\python.exe
 if not exist "%PYTHON_EXE%" set PYTHON_EXE=python
 
 echo [1/2] Esecuzione Ricostruzione SMRD per tutti i pazienti...
