@@ -9,7 +9,7 @@ echo  Implementazione scientifica (Huang et al. 2006 / Pinto et al. 2023)
 echo ======================================================================
 echo.
 
-set "DEFAULT_PID=P_00001"
+set "DEFAULT_PID=P_00081"
 set "PATIENT_ID=%~1"
 
 if "%PATIENT_ID%"=="" (

@@ -3,7 +3,7 @@ Entry point principale per la Ricostruzione 3D della Superficie del Seno da Mamm
 Basato sulla letteratura scientifica:
 - Huang et al. (2006) - Bi-planar MPGS alignment & silhouette projection
 - Pinto et al. (2023) - Generative compressed breast shape model
-- Kita, Highnam & Brady (2001) - Kinematic deformation & lesion correspondence
+- Rodríguez-Ruiz et al. (2017) - In vivo shape characterization
 """
 
 import os
@@ -21,14 +21,12 @@ if CURRENT_DIR not in sys.path:
 from segmentation import process_mammogram_view
 from kinematics import BiplanarKinematics
 from surface_reconstruction import BreastSurfaceReconstructor
-from tumor_localization import TumorReconstructor
 from exporter import export_reconstruction_to_glb
 
 
 def resolve_data_directory(data_dir: str) -> str:
     """
-    Risolve il percorso assoluto della cartella data,
-    cercando sia nel percorso specificato che nella directory radice del progetto.
+    Risolve il percorso assoluto della cartella data.
     """
     candidates = [
         data_dir,
@@ -56,14 +54,12 @@ def resolve_patient_id(data_dir: str, patient_id_input: str) -> str:
     if os.path.exists(direct_path):
         return clean
 
-    # Se l'utente ha inserito solo numeri o formati tipo P_81
     digits = ''.join(c for c in clean if c.isdigit())
     if digits:
         formatted_5 = f"P_{int(digits):05d}"
         if os.path.exists(os.path.join(data_dir, formatted_5)):
             return formatted_5
 
-        # Cerca corrispondenze parziali nelle sottocartelle
         for folder in os.listdir(data_dir):
             if folder.endswith(digits) or folder.lower() == clean.lower():
                 return folder
@@ -73,9 +69,9 @@ def resolve_patient_id(data_dir: str, patient_id_input: str) -> str:
 
 def find_patient_mammogram_files(
     patient_dir: str
-) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]:
+) -> Tuple[Optional[str], Optional[str]]:
     """
-    Rileva automaticamente i file CC, MLO e le corrispondenti ROI all'interno della cartella paziente.
+    Rileva automaticamente i file radiografici CC ed MLO escludendo qualsiasi ROI.
     """
     if not os.path.exists(patient_dir):
         raise FileNotFoundError(f"Cartella paziente non trovata: {patient_dir}")
@@ -84,24 +80,20 @@ def find_patient_mammogram_files(
 
     cc_file = None
     mlo_file = None
-    roi_cc_file = None
-    roi_mlo_file = None
 
     for f in sorted(files):
         f_lower = f.lower()
         if f_lower.endswith(('.jpg', '.jpeg', '.png', '.dcm')):
-            if f.startswith('ROI-'):
-                if 'cc' in f_lower:
-                    roi_cc_file = os.path.join(patient_dir, f)
-                elif 'mlo' in f_lower:
-                    roi_mlo_file = os.path.join(patient_dir, f)
-            else:
-                if 'cc' in f_lower and cc_file is None:
-                    cc_file = os.path.join(patient_dir, f)
-                elif 'mlo' in f_lower and mlo_file is None:
-                    mlo_file = os.path.join(patient_dir, f)
+            # Ignora esplicitamente file ROI o annotazioni di lesione
+            if f.startswith('ROI-') or 'roi' in f_lower or 'mask' in f_lower:
+                continue
 
-    return cc_file, mlo_file, roi_cc_file, roi_mlo_file
+            if 'cc' in f_lower and cc_file is None:
+                cc_file = os.path.join(patient_dir, f)
+            elif 'mlo' in f_lower and mlo_file is None:
+                mlo_file = os.path.join(patient_dir, f)
+
+    return cc_file, mlo_file
 
 
 def run_blender_automation(
@@ -144,9 +136,8 @@ def run_pipeline(
     blender_exe: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Esegue l'intera pipeline di ricostruzione per il paziente specificato.
+    Esegue l'intera pipeline di ricostruzione della sola superficie mammaria per il paziente specificato.
     """
-    # Risoluzione robusta dei percorsi
     resolved_data_dir = resolve_data_directory(data_dir)
     resolved_patient_id = resolve_patient_id(resolved_data_dir, patient_id)
 
@@ -157,21 +148,21 @@ def run_pipeline(
     print("=" * 70)
 
     patient_dir = os.path.join(resolved_data_dir, resolved_patient_id)
-    cc_path, mlo_path, roi_cc_path, roi_mlo_path = find_patient_mammogram_files(patient_dir)
+    cc_path, mlo_path = find_patient_mammogram_files(patient_dir)
 
     if not cc_path or not mlo_path:
         raise FileNotFoundError(f"Impossibile trovare la coppia di viste CC ed MLO in {patient_dir}")
 
-    print(f"[1/5] Vista CC rilevata:  {os.path.basename(cc_path)}")
-    print(f"[1/5] Vista MLO rilevata: {os.path.basename(mlo_path)}")
+    print(f"[1/4] Vista CC rilevata:  {os.path.basename(cc_path)}")
+    print(f"[1/4] Vista MLO rilevata: {os.path.basename(mlo_path)}")
 
-    # 1. Segmentazione border ed estrazione contorni
-    print("\n[2/5] Segmentazione anatomica bordo cutaneo e linea PNL...")
+    # 1. Segmentazione border ed estrazione contorni cutanei
+    print("\n[2/4] Segmentazione anatomica bordo cutaneo e linea PNL...")
     cc_data = process_mammogram_view(cc_path)
     mlo_data = process_mammogram_view(mlo_path)
 
     # 2. Allineamento cinematico bi-planare
-    print("\n[3/5] Allineamento cinematico bi-planare e normalizzazione metrica...")
+    print("\n[3/4] Allineamento cinematico bi-planare e normalizzazione metrica...")
     kinematics = BiplanarKinematics(
         cc_data=cc_data,
         mlo_data=mlo_data,
@@ -179,34 +170,23 @@ def run_pipeline(
     )
 
     # 3. Lofting super-ellittico continuo e generazione mesh stagna
-    print("\n[4/5] Generazione mesh 3D superficie cutanea (super-ellissi p(t))...")
+    print("\n[4/4] Generazione mesh 3D superficie cutanea (super-ellissi p(t))...")
     reconstructor = BreastSurfaceReconstructor(kinematics)
     skin_mesh = reconstructor.reconstruct_surface_mesh()
     metrics = reconstructor.compute_anatomical_metrics(skin_mesh)
 
-    # 4. Localizzazione opzionale della lesione se le ROI sono disponibili
-    tumor_mesh = None
-    if roi_cc_path and roi_mlo_path:
-        print("\n[4b/5] Localizzazione tridimensionale della lesione (ROI rilevate)...")
-        tumor_rec = TumorReconstructor(kinematics)
-        tumor_mesh = tumor_rec.localize_from_rois(roi_cc_path, roi_mlo_path)
-        if tumor_mesh is not None:
-            metrics["tumor_detected"] = True
-            metrics["tumor_volume_cm3"] = round(float(tumor_mesh.volume) / 1000.0, 3)
-
-    # 5. Esportazione in GLB / OBJ
+    # 4. Esportazione in GLB / OBJ della sola superficie cutanea
     patient_output_dir = os.path.join(output_base_dir, resolved_patient_id)
-    print(f"\n[5/5] Esportazione file 3D in: {patient_output_dir}")
+    print(f"\nEsportazione file 3D superficie in: {patient_output_dir}")
     exported_files = export_reconstruction_to_glb(
         skin_mesh=skin_mesh,
-        tumor_mesh=tumor_mesh,
         output_dir=patient_output_dir,
         patient_id=resolved_patient_id,
         metrics=metrics
     )
 
-    # 6. Automazione Blender opzionale
-    chosen_glb = exported_files.get("composite_glb", exported_files.get("skin_glb"))
+    # 5. Automazione Blender
+    chosen_glb = exported_files["skin_glb"]
     blend_path = os.path.join(patient_output_dir, f"{resolved_patient_id}_scene.blend")
     preview_png_path = os.path.join(patient_output_dir, f"{resolved_patient_id}_preview.png")
 
@@ -218,18 +198,16 @@ def run_pipeline(
 
     height_val = metrics.get('height_vertical_mm', metrics.get('height_mm', 0.0))
     print("\n" + "=" * 70)
-    print(" RICOSTRUZIONE COMPLETATA CON SUCCESSO!")
+    print(" RICOSTRUZIONE SUPERFICIE 3D COMPLETATA CON SUCCESSO!")
     print("=" * 70)
     print(f"  * Volume mammella stimato: {metrics['volume_cm3']} cm³")
     print(f"  * Area superficiale cute:  {metrics['surface_area_cm2']} cm²")
     print(f"  * Dimensioni (L x P x A):   {metrics['width_mm']} x {metrics['depth_pnl_mm']} x {height_val} mm (Verticale: {height_val} mm)")
     print(f"  * Chiusura stagna:         {metrics['is_watertight']} (Watertight Manifold)")
-    print(f"  * File GLB Superficie:     {exported_files.get('skin_glb')}")
-    if "composite_glb" in exported_files:
-        print(f"  * File GLB con Tumore:     {exported_files.get('composite_glb')}")
+    print(f"  * File GLB Superficie:     {exported_files['skin_glb']}")
     if "blend_file" in exported_files:
-        print(f"  * File Scena Blender:      {exported_files.get('blend_file')}")
-        print(f"  * Render Anteprima PNG:    {exported_files.get('preview_png')}")
+        print(f"  * File Scena Blender:      {exported_files['blend_file']}")
+        print(f"  * Render Anteprima PNG:    {exported_files['preview_png']}")
     print("=" * 70)
 
     return exported_files
@@ -246,8 +224,8 @@ def main():
     parser.add_argument(
         "--patient_id",
         type=str,
-        default="P_00001",
-        help="ID del paziente (es. P_00001, P_00005, P_00081, 81)"
+        default="P_00081",
+        help="ID del paziente (es. P_00081, 81, P_00001, P_00005)"
     )
     parser.add_argument(
         "--data_dir",

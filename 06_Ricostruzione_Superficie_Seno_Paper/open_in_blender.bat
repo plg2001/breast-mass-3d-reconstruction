@@ -1,9 +1,9 @@
 @echo off
 setlocal enabledelayedexpansion
 cd /d "%~dp0"
-title Apertura Modello 3D Seno in Blender
+title Apertura Modello 3D Superficie Seno in Blender
 
-set "DEFAULT_PID=P_00001"
+set "DEFAULT_PID=P_00081"
 set "PATIENT_ID=%~1"
 
 if "%PATIENT_ID%"=="" (
@@ -14,11 +14,9 @@ if "%PATIENT_ID%"=="" set "PATIENT_ID=%DEFAULT_PID%"
 set "PATIENT_ID=%PATIENT_ID:"=%"
 set "PATIENT_ID=%PATIENT_ID: =%"
 
-rem Normalizzazione ID numerico se breve (es. 81 -> P_00081)
 if exist "output\%PATIENT_ID%" (
     set "RESOLVED_PID=%PATIENT_ID%"
 ) else (
-    rem Cerca cartelle corrispondenti in output
     set "RESOLVED_PID=%PATIENT_ID%"
     for /d %%D in (output\*!PATIENT_ID!*) do (
         set "RESOLVED_PID=%%~nxD"
@@ -31,13 +29,10 @@ if not exist "%BLENDER_EXE%" set "BLENDER_EXE=blender"
 
 set "OUT_DIR=output\%RESOLVED_PID%"
 set "SCENE_FILE=%OUT_DIR%\%RESOLVED_PID%_scene.blend"
-set "GLB_COMPOSITE=%OUT_DIR%\%RESOLVED_PID%_breast_with_tumor.glb"
 set "GLB_SKIN=%OUT_DIR%\%RESOLVED_PID%_breast_surface.glb"
 
 if exist "%SCENE_FILE%" (
     set "TARGET_FILE=%SCENE_FILE%"
-) else if exist "%GLB_COMPOSITE%" (
-    set "TARGET_FILE=%GLB_COMPOSITE%"
 ) else if exist "%GLB_SKIN%" (
     set "TARGET_FILE=%GLB_SKIN%"
 ) else (
@@ -50,7 +45,7 @@ if exist "%SCENE_FILE%" (
 
 echo.
 echo ======================================================================
-echo  Apertura in Blender
+echo  Apertura Superficie 3D in Blender
 echo  Paziente: %RESOLVED_PID%
 echo  File:     %TARGET_FILE%
 echo ======================================================================
