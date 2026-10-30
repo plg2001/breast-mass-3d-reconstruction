@@ -293,21 +293,21 @@ def run_unified_pipeline(
     scene = trimesh.Scene()
     scene.add_geometry(skin_mesh, node_name="breast_skin")
     
-    # 1. Complesso Areola-Capezzolo (NAC) con papilla e ghiandole di Montgomery
+    # 1. Complesso Areola-Capezzolo (NAC) conforme con papilla e ghiandole di Montgomery
     print("  * [1/10] Generazione complesso areola-capezzolo (NAC)...")
-    nac_mesh = generate_nipple_areola_complex(kinematics)
+    nac_mesh = generate_nipple_areola_complex(kinematics, skin_mesh)
     nac_mesh = sanitize_mesh(nac_mesh)
     scene.add_geometry(nac_mesh, node_name="nipple_areola")
 
     # 2. Plesso venoso superficiale sottocutaneo (Cerchio di Haller + vene toraco-epigastriche)
     print("  * [2/10] Generazione plesso venoso superficiale (Circulus venosus Halleri)...")
-    veins_mesh = generate_superficial_veins(kinematics)
+    veins_mesh = generate_superficial_veins(kinematics, skin_mesh)
     veins_mesh = sanitize_mesh(veins_mesh)
     scene.add_geometry(veins_mesh, node_name="breast_veins")
 
     # 3. Rete arteriosa ghiandolare profonda (mammaria interna + toracica laterale)
-    print("  * [3/10] Generazione rete arteriosa ghiandolare profonda...")
-    arteries_mesh = generate_deep_arteries(kinematics)
+    print("  * [3/10] Generazione rete arteriosa ghiandolare profonda (nutrita da densità U-Net-GAN)...")
+    arteries_mesh = generate_deep_arteries(kinematics, volume_3d=volume_3d)
     arteries_mesh = sanitize_mesh(arteries_mesh)
     scene.add_geometry(arteries_mesh, node_name="breast_arteries")
 
@@ -323,9 +323,9 @@ def run_unified_pipeline(
     scene.add_geometry(tissue_mesh, node_name="fibroglandular_tissue")
     print(f"    - Vertici: {len(tissue_mesh.vertices)}, Facce: {len(tissue_mesh.faces)}")
 
-    # 6. Albero galattoforo duttale a tutta chioma (VICTRE duct.cxx)
-    print("  * [6/10] Generazione albero duttale galattoforo e lobuli terminali TDLU...")
-    duct_mesh = generate_victre_ductal_tree(kinematics, num_lobes=12)
+    # 6. Albero galattoforo duttale guidato da densità U-Net-GAN (VICTRE duct.cxx)
+    print("  * [6/10] Generazione albero duttale galattoforo guidato da densità 3D U-Net-GAN...")
+    duct_mesh = generate_victre_ductal_tree(kinematics, volume_3d=volume_3d, num_lobes=14)
     duct_mesh = sanitize_mesh(duct_mesh)
     scene.add_geometry(duct_mesh, node_name="lactiferous_ducts")
     print(f"    - Vertici: {len(duct_mesh.vertices)}, Facce: {len(duct_mesh.faces)}")
@@ -370,10 +370,15 @@ def run_unified_pipeline(
     out_glb = os.path.join(output_dir, f"{resolved_pid}_unified_3d.glb")
     out_blend = os.path.join(output_dir, f"{resolved_pid}_unified_3d.blend")
     out_preview = os.path.join(output_dir, f"{resolved_pid}_multi_layer_preview.png")
-    
+    out_vol_npy = os.path.join(output_dir, "breast_3d_volume.npy")
+
+    # Salva il volume 3D neurale per ispezione
+    np.save(out_vol_npy, volume_3d)
+
     with open(out_glb, "wb") as f:
         f.write(scene.export(file_type="glb"))
     print(f"  * File GLB multi-strato salvato: {out_glb}")
+    print(f"  * Volume 3D U-Net-GAN salvato: {out_vol_npy}")
     
     # Se Blender è disponibile, genera il file .blend con illuminazione e shader
     default_blender = r"C:\Users\Pierluca\OneDrive\Documenti\Blender\blender.exe"
