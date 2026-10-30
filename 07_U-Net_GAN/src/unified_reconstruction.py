@@ -42,7 +42,12 @@ from victre_anatomy import (
     generate_victre_ductal_tree,
     generate_cooper_ligaments,
     generate_subcutaneous_fat,
-    generate_pectoral_muscle
+    generate_pectoral_muscle,
+    generate_superficial_veins,
+    generate_deep_arteries,
+    generate_nipple_areola_complex,
+    generate_lymph_nodes,
+    generate_retromammary_fat
 )
 
 
@@ -275,9 +280,9 @@ def run_unified_pipeline(
     skin_mesh.visual.vertex_colors = np.tile(skin_color, (len(skin_mesh.vertices), 1))
     
     # -----------------------------------------------------------------
-    # FASE 2: Inferenza 3D U-Net-GAN + Anatomia Multi-Strato FDA VICTRE
+    # FASE 2: Inferenza 3D U-Net-GAN + Anatomia Iper-Realistica FDA VICTRE
     # -----------------------------------------------------------------
-    print("\n[3/4] Generazione strati anatomici realistici (FDA VICTRE + 3D U-Net-GAN)...")
+    print("\n[3/4] Generazione strati anatomici iper-realistici (FDA VICTRE + 3D U-Net-GAN)...")
     weights_path = os.path.join(MODULE_07_DIR, "training result", "unet3d_generator.pth")
     generator = load_generator(weights_path)
     
@@ -288,36 +293,65 @@ def run_unified_pipeline(
     scene = trimesh.Scene()
     scene.add_geometry(skin_mesh, node_name="breast_skin")
     
-    # 1. Parenchima fibroglandolare rugoso campionato da 3D U-Net-GAN
-    print("  * [1/5] Generazione parenchima fibroglandolare rugoso...")
+    # 1. Complesso Areola-Capezzolo (NAC) con papilla e ghiandole di Montgomery
+    print("  * [1/10] Generazione complesso areola-capezzolo (NAC)...")
+    nac_mesh = generate_nipple_areola_complex(kinematics)
+    nac_mesh = sanitize_mesh(nac_mesh)
+    scene.add_geometry(nac_mesh, node_name="nipple_areola")
+
+    # 2. Plesso venoso superficiale sottocutaneo (Cerchio di Haller + vene toraco-epigastriche)
+    print("  * [2/10] Generazione plesso venoso superficiale (Circulus venosus Halleri)...")
+    veins_mesh = generate_superficial_veins(kinematics)
+    veins_mesh = sanitize_mesh(veins_mesh)
+    scene.add_geometry(veins_mesh, node_name="breast_veins")
+
+    # 3. Rete arteriosa ghiandolare profonda (mammaria interna + toracica laterale)
+    print("  * [3/10] Generazione rete arteriosa ghiandolare profonda...")
+    arteries_mesh = generate_deep_arteries(kinematics)
+    arteries_mesh = sanitize_mesh(arteries_mesh)
+    scene.add_geometry(arteries_mesh, node_name="breast_arteries")
+
+    # 4. Mantello adiposo premammario sottocutaneo (VICTRE compartment.cxx)
+    print("  * [4/10] Generazione mantello adiposo premammario sottocutaneo...")
+    fat_mesh = generate_subcutaneous_fat(kinematics, skin_mesh)
+    fat_mesh = sanitize_mesh(fat_mesh)
+    scene.add_geometry(fat_mesh, node_name="subcutaneous_fat")
+
+    # 5. Parenchima fibroglandolare rugoso campionato da 3D U-Net-GAN
+    print("  * [5/10] Generazione parenchima fibroglandolare rugoso...")
     tissue_mesh = build_anatomical_rugose_parenchyma(kinematics, volume_3d, skin_mesh)
     scene.add_geometry(tissue_mesh, node_name="fibroglandular_tissue")
     print(f"    - Vertici: {len(tissue_mesh.vertices)}, Facce: {len(tissue_mesh.faces)}")
 
-    # 2. Mantello adiposo premammario sottocutaneo (VICTRE compartment.cxx)
-    print("  * [2/5] Generazione mantello adiposo sottocutaneo...")
-    fat_mesh = generate_subcutaneous_fat(kinematics, skin_mesh)
-    fat_mesh = sanitize_mesh(fat_mesh)
-    scene.add_geometry(fat_mesh, node_name="subcutaneous_fat")
-    print(f"    - Vertici: {len(fat_mesh.vertices)}, Facce: {len(fat_mesh.faces)}")
-
-    # 3. Albero galattoforo duttale (VICTRE duct.cxx)
-    print("  * [3/5] Generazione albero duttale galattoforo e lobuli TDLU...")
-    duct_mesh = generate_victre_ductal_tree(kinematics, num_lobes=14)
+    # 6. Albero galattoforo duttale a tutta chioma (VICTRE duct.cxx)
+    print("  * [6/10] Generazione albero duttale galattoforo e lobuli terminali TDLU...")
+    duct_mesh = generate_victre_ductal_tree(kinematics, num_lobes=12)
     duct_mesh = sanitize_mesh(duct_mesh)
     scene.add_geometry(duct_mesh, node_name="lactiferous_ducts")
     print(f"    - Vertici: {len(duct_mesh.vertices)}, Facce: {len(duct_mesh.faces)}")
 
-    # 4. Legamenti di Cooper / Retinacula Cutis (VICTRE cooper.hxx)
-    print("  * [4/5] Generazione legamenti di Cooper (fasce connettivali)...")
-    cooper_mesh = generate_cooper_ligaments(tissue_mesh, skin_mesh, kinematics, num_ligaments=42)
+    # 7. Legamenti di Cooper / Retinacula cutis con inserzioni subdermiche (VICTRE cooper.hxx)
+    print("  * [7/10] Generazione legamenti di Cooper (retinacula cutis)...")
+    cooper_mesh = generate_cooper_ligaments(tissue_mesh, skin_mesh, kinematics, num_ligaments=26)
     if cooper_mesh is not None:
         cooper_mesh = sanitize_mesh(cooper_mesh)
         scene.add_geometry(cooper_mesh, node_name="cooper_ligaments")
         print(f"    - Vertici: {len(cooper_mesh.vertices)}, Facce: {len(cooper_mesh.faces)}")
 
-    # 5. Muscolo Grande Pettorale (parete toracica posteriore)
-    print("  * [5/5] Generazione muscolo pettorale maggiore posteriore...")
+    # 8. Linfonodi intramammari reniformi (UOQ)
+    print("  * [8/10] Generazione linfonodi intramammari reniformi (UOQ)...")
+    lymph_mesh = generate_lymph_nodes(kinematics)
+    lymph_mesh = sanitize_mesh(lymph_mesh)
+    scene.add_geometry(lymph_mesh, node_name="lymph_nodes")
+
+    # 9. Cuscino adiposo retromammario (Spazio di Chassaignac)
+    print("  * [9/10] Generazione cuscino adiposo retromammario (spazio di Chassaignac)...")
+    retro_mesh = generate_retromammary_fat(kinematics, skin_mesh)
+    retro_mesh = sanitize_mesh(retro_mesh)
+    scene.add_geometry(retro_mesh, node_name="retromammary_fat")
+
+    # 10. Muscolo Grande Pettorale (parete toracica posteriore)
+    print("  * [10/10] Generazione muscolo pettorale maggiore (parete toracica)...")
     pec_mesh = generate_pectoral_muscle(kinematics, skin_mesh)
     pec_mesh = sanitize_mesh(pec_mesh)
     scene.add_geometry(pec_mesh, node_name="pectoral_muscle")

@@ -1,6 +1,8 @@
 """
 Script per creare una scena Blender (.blend) con materiali semitrasparenti e luci studio
-a partire dal file GLB multi-strato (Cute, Grasso sottocutaneo, Parenchima, Dotti galattofori, Legamenti di Cooper, Muscolo pettorale).
+a partire dal file GLB multi-strato (Cute, Areola-Capezzolo, Vene superficiali, Arterie profonde,
+Grasso premammario, Parenchima, Dotti galattofori, Legamenti di Cooper, Linfonodi intramammari,
+Cuscino retromammario, Muscolo pettorale).
 """
 
 import sys
@@ -48,7 +50,7 @@ def setup_scene(glb_path: str, blend_output_path: str, render_png_path: str = No
             name_lower = obj.name.lower()
             if bsdf:
                 if "skin" in name_lower:
-                    # Cute / Derme: rosa carne tenue, molto trasparente
+                    # Cute / Derma: rosa carne tenue, molto trasparente
                     bsdf.inputs["Base Color"].default_value = (0.98, 0.82, 0.78, 1.0)
                     bsdf.inputs["Alpha"].default_value = 0.12
                     bsdf.inputs["Roughness"].default_value = 0.35
@@ -56,8 +58,36 @@ def setup_scene(glb_path: str, blend_output_path: str, render_png_path: str = No
                         bsdf.inputs["Subsurface Weight"].default_value = 0.12
                     mat.diffuse_color = (0.98, 0.82, 0.78, 0.12)
                     
+                elif "areola" in name_lower or "nipple" in name_lower or "nac" in name_lower:
+                    # Complesso Areola-Capezzolo (NAC): pigmento melanico naturale bruno/rosato
+                    bsdf.inputs["Base Color"].default_value = (0.72, 0.42, 0.38, 1.0)
+                    bsdf.inputs["Alpha"].default_value = 0.98
+                    bsdf.inputs["Roughness"].default_value = 0.55
+                    mat.diffuse_color = (0.72, 0.42, 0.38, 0.98)
+                    
+                elif "vein" in name_lower or "venous" in name_lower:
+                    # Plesso venoso superficiale (cerchio di Haller): azzurro/blu venoso
+                    bsdf.inputs["Base Color"].default_value = (0.12, 0.42, 0.85, 1.0)
+                    bsdf.inputs["Alpha"].default_value = 0.92
+                    bsdf.inputs["Roughness"].default_value = 0.20
+                    mat.diffuse_color = (0.12, 0.42, 0.85, 0.92)
+                    
+                elif "arter" in name_lower:
+                    # Rete arteriosa ghiandolare: rosso vivo scarlatto
+                    bsdf.inputs["Base Color"].default_value = (0.85, 0.12, 0.16, 1.0)
+                    bsdf.inputs["Alpha"].default_value = 0.95
+                    bsdf.inputs["Roughness"].default_value = 0.25
+                    mat.diffuse_color = (0.85, 0.12, 0.16, 0.95)
+                    
+                elif "retro" in name_lower:
+                    # Cuscino adiposo retromammario (spazio di Chassaignac)
+                    bsdf.inputs["Base Color"].default_value = (0.96, 0.92, 0.62, 1.0)
+                    bsdf.inputs["Alpha"].default_value = 0.20
+                    bsdf.inputs["Roughness"].default_value = 0.60
+                    mat.diffuse_color = (0.96, 0.92, 0.62, 0.20)
+                    
                 elif "fat" in name_lower or "adipose" in name_lower:
-                    # Grasso sottocutaneo / Adipe premammario: giallo avorio tenue semitrasparente
+                    # Grasso premammario sottocutaneo: giallo avorio tenue semitrasparente
                     bsdf.inputs["Base Color"].default_value = (0.95, 0.90, 0.58, 1.0)
                     bsdf.inputs["Alpha"].default_value = 0.18
                     bsdf.inputs["Roughness"].default_value = 0.55
@@ -86,8 +116,15 @@ def setup_scene(glb_path: str, blend_output_path: str, render_png_path: str = No
                     bsdf.inputs["Roughness"].default_value = 0.25
                     mat.diffuse_color = (0.86, 0.89, 0.95, 0.85)
                     
+                elif "lymph" in name_lower or "node" in name_lower:
+                    # Linfonodi intramammari reniformi: verde oliva chiaro/buff
+                    bsdf.inputs["Base Color"].default_value = (0.70, 0.76, 0.58, 1.0)
+                    bsdf.inputs["Alpha"].default_value = 0.90
+                    bsdf.inputs["Roughness"].default_value = 0.40
+                    mat.diffuse_color = (0.70, 0.76, 0.58, 0.90)
+                    
                 elif "pectoral" in name_lower or "muscle" in name_lower:
-                    # Muscolo pettorale maggiore (parete toracica): rosso muscolare profondo
+                    # Muscolo grande pettorale: rosso muscolare profondo
                     bsdf.inputs["Base Color"].default_value = (0.65, 0.16, 0.16, 1.0)
                     bsdf.inputs["Alpha"].default_value = 0.85
                     bsdf.inputs["Roughness"].default_value = 0.50
