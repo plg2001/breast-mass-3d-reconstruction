@@ -47,7 +47,10 @@ from victre_anatomy import (
     generate_deep_arteries,
     generate_nipple_areola_complex,
     generate_lymph_nodes,
-    generate_retromammary_fat
+    generate_retromammary_fat,
+    generate_mammary_nerves,
+    generate_lymphatic_vessels,
+    generate_deep_pectoral_fascia
 )
 
 
@@ -339,23 +342,41 @@ def run_unified_pipeline(
         print(f"    - Vertici: {len(cooper_mesh.vertices)}, Facce: {len(cooper_mesh.faces)}")
 
     # 8. Linfonodi intramammari reniformi (UOQ)
-    print("  * [8/10] Generazione linfonodi intramammari reniformi (UOQ)...")
+    print("  * [8/13] Generazione linfonodi intramammari reniformi (UOQ)...")
     lymph_mesh = generate_lymph_nodes(kinematics)
     lymph_mesh = sanitize_mesh(lymph_mesh)
     scene.add_geometry(lymph_mesh, node_name="lymph_nodes")
 
-    # 9. Cuscino adiposo retromammario (Spazio di Chassaignac)
-    print("  * [9/10] Generazione cuscino adiposo retromammario (spazio di Chassaignac)...")
+    # 9. Cuscino adiposo retromammario continuo (Spazio di Chassaignac)
+    print("  * [9/13] Generazione cuscino adiposo retromammario continuo (spazio di Chassaignac)...")
     retro_mesh = generate_retromammary_fat(kinematics, skin_mesh)
     retro_mesh = sanitize_mesh(retro_mesh)
     scene.add_geometry(retro_mesh, node_name="retromammary_fat")
 
-    # 10. Muscolo Grande Pettorale (parete toracica posteriore)
-    print("  * [10/10] Generazione muscolo pettorale maggiore (parete toracica)...")
+    # 10. Fascia pettorale profonda (Lamina profonda della fascia superficialis)
+    print("  * [10/13] Generazione fascia pettorale profonda pre-muscolare...")
+    fascia_mesh = generate_deep_pectoral_fascia(kinematics, skin_mesh)
+    fascia_mesh = sanitize_mesh(fascia_mesh)
+    scene.add_geometry(fascia_mesh, node_name="deep_pectoral_fascia")
+
+    # 11. Muscolo Grande Pettorale (parete toracica posteriore)
+    print("  * [11/13] Generazione muscolo pettorale maggiore (parete toracica)...")
     pec_mesh = generate_pectoral_muscle(kinematics, skin_mesh)
     pec_mesh = sanitize_mesh(pec_mesh)
     scene.add_geometry(pec_mesh, node_name="pectoral_muscle")
     print(f"    - Vertici: {len(pec_mesh.vertices)}, Facce: {len(pec_mesh.faces)}")
+
+    # 12. Innervazione sensoriale cutanea (4° ramo cutaneo laterale del nervo intercostale + rami mediali)
+    print("  * [12/13] Generazione nervi sensoriali cutanei (4° intercostale)...")
+    nerves_mesh = generate_mammary_nerves(kinematics)
+    nerves_mesh = sanitize_mesh(nerves_mesh)
+    scene.add_geometry(nerves_mesh, node_name="mammary_nerves")
+
+    # 13. Plesso linfatico subareolare di Sappey e vasi collettori ascellari
+    print("  * [13/13] Generazione plesso linfatico di Sappey e vasi ascellari...")
+    lymph_vessels_mesh = generate_lymphatic_vessels(kinematics)
+    lymph_vessels_mesh = sanitize_mesh(lymph_vessels_mesh)
+    scene.add_geometry(lymph_vessels_mesh, node_name="lymphatic_vessels")
 
     print("  * Nota: Lesione tumorale omessa su richiesta (verra ricostruita e posizionata separatamente).")
         

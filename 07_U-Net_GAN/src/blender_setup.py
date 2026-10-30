@@ -50,13 +50,13 @@ def setup_scene(glb_path: str, blend_output_path: str, render_png_path: str = No
             name_lower = obj.name.lower()
             if bsdf:
                 if "skin" in name_lower:
-                    # Cute / Derma: rosa carne tenue, molto trasparente
-                    bsdf.inputs["Base Color"].default_value = (0.98, 0.82, 0.78, 1.0)
-                    bsdf.inputs["Alpha"].default_value = 0.12
-                    bsdf.inputs["Roughness"].default_value = 0.35
+                    # Cute / Derma: tono carne naturale, visibile ed elegante
+                    bsdf.inputs["Base Color"].default_value = (0.95, 0.82, 0.77, 1.0)
+                    bsdf.inputs["Alpha"].default_value = 0.22
+                    bsdf.inputs["Roughness"].default_value = 0.32
                     if "Subsurface Weight" in bsdf.inputs:
-                        bsdf.inputs["Subsurface Weight"].default_value = 0.12
-                    mat.diffuse_color = (0.98, 0.82, 0.78, 0.12)
+                        bsdf.inputs["Subsurface Weight"].default_value = 0.25
+                    mat.diffuse_color = (0.95, 0.82, 0.77, 0.22)
                     
                 elif "areola" in name_lower or "nipple" in name_lower or "nac" in name_lower:
                     # Complesso Areola-Capezzolo (NAC): pigmento melanico naturale bruno/rosato
@@ -78,22 +78,43 @@ def setup_scene(glb_path: str, blend_output_path: str, render_png_path: str = No
                     bsdf.inputs["Alpha"].default_value = 0.95
                     bsdf.inputs["Roughness"].default_value = 0.25
                     mat.diffuse_color = (0.85, 0.12, 0.16, 0.95)
+
+                elif "nerve" in name_lower:
+                    # Nervi cutanei sensoriali (4° intercostale): giallo brillante anatomico
+                    bsdf.inputs["Base Color"].default_value = (0.98, 0.90, 0.15, 1.0)
+                    bsdf.inputs["Alpha"].default_value = 0.98
+                    bsdf.inputs["Roughness"].default_value = 0.20
+                    mat.diffuse_color = (0.98, 0.90, 0.15, 0.98)
+
+                elif "lymphatic" in name_lower or "sappey" in name_lower:
+                    # Vasi linfatici e plesso di Sappey: verde-oro luminoso
+                    bsdf.inputs["Base Color"].default_value = (0.82, 0.92, 0.45, 1.0)
+                    bsdf.inputs["Alpha"].default_value = 0.92
+                    bsdf.inputs["Roughness"].default_value = 0.25
+                    mat.diffuse_color = (0.82, 0.92, 0.45, 0.92)
+
+                elif "fascia" in name_lower:
+                    # Fascia pettorale profonda: velo fibroso perlaceo semitrasparente
+                    bsdf.inputs["Base Color"].default_value = (0.90, 0.93, 0.98, 1.0)
+                    bsdf.inputs["Alpha"].default_value = 0.38
+                    bsdf.inputs["Roughness"].default_value = 0.45
+                    mat.diffuse_color = (0.90, 0.93, 0.98, 0.38)
                     
                 elif "retro" in name_lower:
                     # Cuscino adiposo retromammario (spazio di Chassaignac)
-                    bsdf.inputs["Base Color"].default_value = (0.96, 0.92, 0.62, 1.0)
-                    bsdf.inputs["Alpha"].default_value = 0.20
-                    bsdf.inputs["Roughness"].default_value = 0.60
-                    mat.diffuse_color = (0.96, 0.92, 0.62, 0.20)
+                    bsdf.inputs["Base Color"].default_value = (0.95, 0.89, 0.58, 1.0)
+                    bsdf.inputs["Alpha"].default_value = 0.48
+                    bsdf.inputs["Roughness"].default_value = 0.50
+                    mat.diffuse_color = (0.95, 0.89, 0.58, 0.48)
                     
                 elif "fat" in name_lower or "adipose" in name_lower:
-                    # Grasso premammario sottocutaneo: giallo avorio tenue semitrasparente
-                    bsdf.inputs["Base Color"].default_value = (0.95, 0.90, 0.58, 1.0)
-                    bsdf.inputs["Alpha"].default_value = 0.18
-                    bsdf.inputs["Roughness"].default_value = 0.55
+                    # Grasso premammario sottocutaneo volumetrico: avorio/giallo caldo corposo (elimina vuoti)
+                    bsdf.inputs["Base Color"].default_value = (0.96, 0.90, 0.60, 1.0)
+                    bsdf.inputs["Alpha"].default_value = 0.52
+                    bsdf.inputs["Roughness"].default_value = 0.45
                     if "Subsurface Weight" in bsdf.inputs:
-                        bsdf.inputs["Subsurface Weight"].default_value = 0.20
-                    mat.diffuse_color = (0.95, 0.90, 0.58, 0.18)
+                        bsdf.inputs["Subsurface Weight"].default_value = 0.30
+                    mat.diffuse_color = (0.96, 0.90, 0.60, 0.52)
                     
                 elif "tissue" in name_lower or "parenchyma" in name_lower or "fibroglandular" in name_lower:
                     # Tessuto parenchimale fibroglandolare: arancio ambrato semitrasparente

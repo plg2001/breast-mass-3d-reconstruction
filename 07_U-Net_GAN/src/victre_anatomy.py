@@ -512,7 +512,145 @@ def generate_nipple_areola_complex(kinematics, skin_mesh=None):
     areola_color = np.array([185, 110, 95, 240], dtype=np.uint8)
     nac_mesh.visual.vertex_colors = np.tile(areola_color, (len(nac_mesh.vertices), 1))
     return nac_mesh
-    return nac_mesh
+
+
+def generate_mammary_nerves(kinematics, rng_seed=42):
+    """
+    Genera l'innervazione sensoriale cutanea mammaria:
+    - 4° Ramo Cutaneo Laterale del Nervo Intercostale (decorre attraverso il mantello adiposo verso il NAC)
+    - Rami Cutanei Anteriori Mediali (3°-4° nervo intercostale peristernalmente)
+    Fornisce la sensibilità fisiologica alla cute, all'areola e alla papilla.
+    """
+    rng = np.random.RandomState(rng_seed)
+    pnl = kinematics.pnl_mm
+    _, _, _, Xc_apex, Zc_apex = kinematics.get_slice_parameters(kinematics.num_depth_slices - 1)
+    apex_center = np.array([Xc_apex, Zc_apex, pnl])
+    segments = []
+
+    # 1. 4° Nervo Intercostale Laterale (principale nervo sensoriale del capezzolo)
+    # Origine parete laterale toracica (t ~ 0.22, theta ~ 0.12 pi)
+    p_lat_origin = get_parenchyma_point(kinematics, 0.22, np.pi * 0.12, rho=0.88)
+    p_lat_mid = get_parenchyma_point(kinematics, 0.55, np.pi * 0.08, rho=0.84)
+    p_lat_pre = get_parenchyma_point(kinematics, 0.78, np.pi * 0.05, rho=0.72)
+
+    segments.extend(create_curved_tube(p_lat_origin, p_lat_mid, 0.45, 0.36, num_subsegs=2, curvature=0.5, sections=5))
+    segments.extend(create_curved_tube(p_lat_mid, p_lat_pre, 0.36, 0.28, num_subsegs=2, curvature=0.4, sections=5))
+
+    # Ramificazioni terminali che circondano e innervano areola e capezzolo
+    for d_th, offset_z in [(-0.15, -1.5), (0.0, -1.0), (0.15, -1.8)]:
+        p_term = apex_center + np.array([4.0 * np.cos(d_th), 4.0 * np.sin(d_th), offset_z])
+        segments.extend(create_curved_tube(p_lat_pre, p_term, 0.25, 0.15, num_subsegs=1, curvature=0.0, sections=4))
+
+    # 2. Ramo Cutaneo Anteriore Mediale (3°-4° intercostale)
+    p_med_origin = get_parenchyma_point(kinematics, 0.20, np.pi * 0.88, rho=0.88)
+    p_med_mid = get_parenchyma_point(kinematics, 0.50, np.pi * 0.85, rho=0.80)
+    p_med_term = get_parenchyma_point(kinematics, 0.75, np.pi * 0.80, rho=0.68)
+    segments.extend(create_curved_tube(p_med_origin, p_med_mid, 0.38, 0.28, num_subsegs=2, curvature=0.4, sections=5))
+    segments.extend(create_curved_tube(p_med_mid, p_med_term, 0.28, 0.18, num_subsegs=1, curvature=0.0, sections=4))
+
+    nerve_mesh = trimesh.util.concatenate(segments)
+    nerve_color = np.array([245, 225, 55, 235], dtype=np.uint8)
+    nerve_mesh.visual.vertex_colors = np.tile(nerve_color, (len(nerve_mesh.vertices), 1))
+    return nerve_mesh
+
+
+def generate_lymphatic_vessels(kinematics, rng_seed=42):
+    """
+    Genera il sistema vascolare linfatico mammario:
+    - Plesso Linfatico Subareolare di Sappey (anastomosi circolare periareolare)
+    - Vasi Linfatici Collettori Ascellari che decorrono nel Quadrante Supero-Esterno (UOQ)
+      verso i linfonodi intramammari e la stazione ascellare.
+    """
+    rng = np.random.RandomState(rng_seed)
+    pnl = kinematics.pnl_mm
+    _, _, _, Xc_apex, Zc_apex = kinematics.get_slice_parameters(kinematics.num_depth_slices - 1)
+    segments = []
+
+    # 1. Plesso di Sappey (anello linfatico subareolare, r ~ 7.0 mm)
+    r_sappey = 7.0
+    num_nodes = 10
+    pts_ring = []
+    for i in range(num_nodes):
+        th = 2.0 * np.pi * i / num_nodes
+        pt = np.array([
+            Xc_apex + r_sappey * np.cos(th),
+            Zc_apex + r_sappey * np.sin(th),
+            pnl - 2.8 + rng.uniform(-0.3, 0.3)
+        ])
+        pts_ring.append(pt)
+    for i in range(num_nodes):
+        p1 = pts_ring[i]
+        p2 = pts_ring[(i + 1) % num_nodes]
+        segments.extend(create_curved_tube(p1, p2, 0.24, 0.24, num_subsegs=1, curvature=0.0, sections=5))
+
+    # 2. Vasi collettori linfatici verso il polo ascellare (UOQ: theta ~ 0.25 pi)
+    p_lymph_target1 = get_parenchyma_point(kinematics, 0.42, np.pi * 0.25, rho=0.72)
+    p_lymph_target2 = get_parenchyma_point(kinematics, 0.34, np.pi * 0.28, rho=0.76)
+
+    p_start1 = pts_ring[1]
+    p_mid1 = get_parenchyma_point(kinematics, 0.65, np.pi * 0.22, rho=0.80)
+    segments.extend(create_curved_tube(p_start1, p_mid1, 0.32, 0.25, num_subsegs=2, curvature=0.5, sections=5))
+    segments.extend(create_curved_tube(p_mid1, p_lymph_target1, 0.25, 0.20, num_subsegs=2, curvature=0.4, sections=5))
+
+    p_start2 = pts_ring[2]
+    p_mid2 = get_parenchyma_point(kinematics, 0.60, np.pi * 0.30, rho=0.82)
+    segments.extend(create_curved_tube(p_start2, p_mid2, 0.30, 0.24, num_subsegs=2, curvature=0.5, sections=5))
+    segments.extend(create_curved_tube(p_mid2, p_lymph_target2, 0.24, 0.18, num_subsegs=2, curvature=0.4, sections=5))
+
+    lymph_mesh = trimesh.util.concatenate(segments)
+    lymph_vessel_color = np.array([215, 235, 130, 225], dtype=np.uint8)
+    lymph_mesh.visual.vertex_colors = np.tile(lymph_vessel_color, (len(lymph_mesh.vertices), 1))
+    return lymph_mesh
+
+
+def generate_deep_pectoral_fascia(kinematics, skin_mesh):
+    """
+    Genera la Fascia Pettorale Profonda (Lamina Profonda della Fascia Superficialis),
+    il piano fibroso connettivale che riveste la superficie anteriore del grande pettorale
+    e delimita posteriormente lo spazio di scorrimento retromammario di Chassaignac.
+    """
+    min_b, max_b = skin_mesh.bounds
+    Nx, Ny = 50, 65
+    xs = np.linspace(min_b[0], max_b[0], Nx)
+    ys = np.linspace(min_b[1], max_b[1], Ny)
+    X, Y = np.meshgrid(xs, ys, indexing='ij')
+
+    _, W, H, Xc, Zc = kinematics.get_slice_parameters(0)
+    a = max(2.0, 0.5 * W * 0.94)
+    b = max(2.0, 0.5 * H * 0.94)
+    p = 2.15
+
+    dx = np.abs(X - Xc) / a
+    dy = np.abs(Y - Zc) / b
+    dist_se = (dx ** p + dy ** p) ** (1.0 / p)
+
+    mask = dist_se <= 1.0
+    Z = 1.2 + 1.8 * (1.0 - np.clip(dist_se, 0.0, 1.0))
+
+    verts = []
+    faces = []
+    vert_map = -np.ones((Nx, Ny), dtype=int)
+
+    for i in range(Nx):
+        for j in range(Ny):
+            if mask[i, j]:
+                vert_map[i, j] = len(verts)
+                verts.append([X[i, j], Y[i, j], Z[i, j]])
+
+    for i in range(Nx - 1):
+        for j in range(Ny - 1):
+            v00 = vert_map[i, j]
+            v10 = vert_map[i + 1, j]
+            v01 = vert_map[i, j + 1]
+            v11 = vert_map[i + 1, j + 1]
+            if v00 >= 0 and v10 >= 0 and v01 >= 0 and v11 >= 0:
+                faces.append([v00, v10, v11])
+                faces.append([v00, v11, v01])
+
+    fascia_mesh = trimesh.Trimesh(vertices=np.array(verts), faces=np.array(faces))
+    fascia_color = np.array([230, 235, 245, 140], dtype=np.uint8)
+    fascia_mesh.visual.vertex_colors = np.tile(fascia_color, (len(fascia_mesh.vertices), 1))
+    return fascia_mesh
 
 
 def generate_lymph_nodes(kinematics):
@@ -623,11 +761,13 @@ def generate_cooper_ligaments(tissue_mesh, skin_mesh, kinematics, num_ligaments=
 
 def generate_subcutaneous_fat(kinematics, skin_mesh):
     """
-    Genera il mantello adiposo sottocutaneo / premammario (FDA VICTRE compartment.cxx).
-    Occupa lo spazio anatomico tra la cute e il parenchima interno.
+    Genera il mantello adiposo sottocutaneo / premammario volumetrico continuo (FDA VICTRE compartment.cxx).
+    Riempie l'INTERO spazio anatomico tra la cute e il parenchima interno,
+    eliminando qualsiasi sensazione di "guscio vuoto" ed esibendo una ricca
+    trama biologica di lobuli adiposi (compartimenti di grasso).
     """
     min_b, max_b = skin_mesh.bounds
-    Nx, Ny, Nz = 60, 75, 60
+    Nx, Ny, Nz = 70, 85, 70
     xs = np.linspace(min_b[0], max_b[0], Nx)
     ys = np.linspace(min_b[1], max_b[1], Ny)
     zs = np.linspace(0.0, kinematics.pnl_mm, Nz)
@@ -639,20 +779,28 @@ def generate_subcutaneous_fat(kinematics, skin_mesh):
         t_ratio = z_val / kinematics.pnl_mm
         slice_idx = int(np.clip(t_ratio * (kinematics.num_depth_slices - 1), 0, kinematics.num_depth_slices - 1))
         _, W, H, Xc, Zc = kinematics.get_slice_parameters(slice_idx)
-        
+
         a_skin = max(1.5, 0.5 * W)
         b_skin = max(1.5, 0.5 * H)
         p = 2.15 - 0.15 * t_ratio
-        
+
         dx = np.abs(X[:, :, k] - Xc) / a_skin
         dy = np.abs(Y[:, :, k] - Zc) / b_skin
         dist_se = (dx ** p + dy ** p) ** (1.0 / p)
-        
-        in_shell = np.exp(-((dist_se - 0.92) / 0.055)**2)
-        lobules = 0.88 + 0.12 * np.sin(0.35 * X[:, :, k]) * np.cos(0.35 * Y[:, :, k])
+
+        # Mantello volumetrico solido: riempie lo spazio tra 0.83 e 0.985
+        in_mantle = np.clip((dist_se - 0.83) / 0.06, 0.0, 1.0) * np.clip((0.985 - dist_se) / 0.04, 0.0, 1.0)
+
+        # Micro-lobulazioni biologiche del tessuto adiposo (lobuli di grasso compatti)
+        lobules = 0.85 + 0.15 * (
+            np.sin(0.42 * X[:, :, k]) * np.cos(0.42 * Y[:, :, k]) +
+            np.cos(0.32 * X[:, :, k] + 0.35 * Z[:, :, k]) * np.sin(0.35 * Y[:, :, k])
+        )
+
         nipple_falloff = np.clip((0.97 - t_ratio) / 0.04, 0.0, 1.0) if t_ratio > 0.93 else 1.0
-        
-        fat_grid[:, :, k] = in_shell * lobules * nipple_falloff
+        base_fade = np.clip(t_ratio / 0.04, 0.0, 1.0)
+
+        fat_grid[:, :, k] = in_mantle * lobules * nipple_falloff * base_fade
 
     spacing = (
         (max_b[0] - min_b[0]) / (Nx - 1),
@@ -660,27 +808,28 @@ def generate_subcutaneous_fat(kinematics, skin_mesh):
         kinematics.pnl_mm / (Nz - 1)
     )
     smooth_fat = ndimage.gaussian_filter(fat_grid, sigma=0.45)
-    verts, faces, normals, _ = marching_cubes(smooth_fat, level=0.42, spacing=spacing)
+    verts, faces, normals, _ = marching_cubes(smooth_fat, level=0.35, spacing=spacing)
     verts[:, 0] += min_b[0]
     verts[:, 1] += min_b[1]
-    
+
     fat_mesh = trimesh.Trimesh(vertices=verts, faces=faces, vertex_normals=normals)
-    fat_color = np.array([245, 235, 175, 70], dtype=np.uint8)
+    fat_color = np.array([245, 230, 165, 120], dtype=np.uint8)
     fat_mesh.visual.vertex_colors = np.tile(fat_color, (len(fat_mesh.vertices), 1))
     return fat_mesh
 
 
 def generate_retromammary_fat(kinematics, skin_mesh):
     """
-    Genera il cuscino adiposo retromammario (Spazio di Chassaignac)
+    Genera il cuscino adiposo retromammario continuo (Spazio di Chassaignac)
     situato tra la superficie posteriore della ghiandola e la fascia del grande pettorale.
+    Fornisce volume solido alla base toracica eliminando vuoti posteriori.
     """
     min_b, max_b = skin_mesh.bounds
-    Nx, Ny, Nz = 55, 70, 30
+    Nx, Ny, Nz = 60, 75, 35
     xs = np.linspace(min_b[0], max_b[0], Nx)
     ys = np.linspace(min_b[1], max_b[1], Ny)
-    max_z_retro = 10.0
-    zs = np.linspace(0.5, max_z_retro, Nz)
+    max_z_retro = 13.0
+    zs = np.linspace(0.8, max_z_retro, Nz)
     X, Y, Z = np.meshgrid(xs, ys, zs, indexing='ij')
 
     retro_grid = np.zeros((Nx, Ny, Nz), dtype=np.float32)
@@ -689,33 +838,35 @@ def generate_retromammary_fat(kinematics, skin_mesh):
         t_ratio = z_val / kinematics.pnl_mm
         slice_idx = int(np.clip(t_ratio * (kinematics.num_depth_slices - 1), 0, kinematics.num_depth_slices - 1))
         _, W, H, Xc, Zc = kinematics.get_slice_parameters(slice_idx)
-        
-        a = max(1.5, 0.5 * W * 0.90)
-        b = max(1.5, 0.5 * H * 0.90)
+
+        a = max(1.5, 0.5 * W * 0.92)
+        b = max(1.5, 0.5 * H * 0.92)
         p = 2.15
-        
+
         dx = np.abs(X[:, :, k] - Xc) / a
         dy = np.abs(Y[:, :, k] - Zc) / b
         dist_se = (dx ** p + dy ** p) ** (1.0 / p)
-        
-        in_bound = np.clip((1.0 - dist_se) / 0.12, 0.0, 1.0)
-        # Cuscino retromammario compreso tra z = 1.5 e z = 7.5 mm
-        z_pad = np.exp(-((z_val - 4.5) / 2.2)**2)
-        retro_grid[:, :, k] = in_bound * z_pad
+
+        in_bound = np.clip((0.98 - dist_se) / 0.10, 0.0, 1.0)
+        # Cuscino volumetrico compatto tra z = 1.0 e z = 11.5 mm
+        z_pad = np.clip((z_val - 1.0) / 1.5, 0.0, 1.0) * np.clip((11.5 - z_val) / 2.5, 0.0, 1.0)
+        lobules = 0.88 + 0.12 * np.sin(0.40 * X[:, :, k]) * np.cos(0.40 * Y[:, :, k])
+
+        retro_grid[:, :, k] = in_bound * z_pad * lobules
 
     spacing = (
         (max_b[0] - min_b[0]) / (Nx - 1),
         (max_b[1] - min_b[1]) / (Ny - 1),
-        (max_z_retro - 0.5) / (Nz - 1)
+        (max_z_retro - 0.8) / (Nz - 1)
     )
-    smooth_retro = ndimage.gaussian_filter(retro_grid, sigma=0.50)
-    verts, faces, normals, _ = marching_cubes(smooth_retro, level=0.40, spacing=spacing)
+    smooth_retro = ndimage.gaussian_filter(retro_grid, sigma=0.48)
+    verts, faces, normals, _ = marching_cubes(smooth_retro, level=0.32, spacing=spacing)
     verts[:, 0] += min_b[0]
     verts[:, 1] += min_b[1]
-    verts[:, 2] += 0.5
-    
+    verts[:, 2] += 0.8
+
     retro_mesh = trimesh.Trimesh(vertices=verts, faces=faces, vertex_normals=normals)
-    retro_color = np.array([248, 238, 170, 65], dtype=np.uint8)
+    retro_color = np.array([245, 232, 160, 110], dtype=np.uint8)
     retro_mesh.visual.vertex_colors = np.tile(retro_color, (len(retro_mesh.vertices), 1))
     return retro_mesh
 
