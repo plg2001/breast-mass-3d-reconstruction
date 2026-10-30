@@ -38,6 +38,12 @@ from inference import (
     load_generator, preprocess_image, run_inference, 
     resolve_data_directory, Config, safe_smooth_mesh
 )
+from victre_anatomy import (
+    generate_victre_ductal_tree,
+    generate_cooper_ligaments,
+    generate_subcutaneous_fat,
+    generate_pectoral_muscle
+)
 
 
 def sanitize_mesh(mesh: trimesh.Trimesh) -> trimesh.Trimesh:
@@ -269,9 +275,9 @@ def run_unified_pipeline(
     skin_mesh.visual.vertex_colors = np.tile(skin_color, (len(skin_mesh.vertices), 1))
     
     # -----------------------------------------------------------------
-    # FASE 2: Inferenza 3D U-Net-GAN per Densità Interna e Tumore
+    # FASE 2: Inferenza 3D U-Net-GAN + Anatomia Multi-Strato FDA VICTRE
     # -----------------------------------------------------------------
-    print("\n[3/4] Inferenza 3D U-Net-GAN per densita interna e localizzazione lesione...")
+    print("\n[3/4] Generazione strati anatomici realistici (FDA VICTRE + 3D U-Net-GAN)...")
     weights_path = os.path.join(MODULE_07_DIR, "training result", "unet3d_generator.pth")
     generator = load_generator(weights_path)
     
@@ -282,26 +288,58 @@ def run_unified_pipeline(
     scene = trimesh.Scene()
     scene.add_geometry(skin_mesh, node_name="breast_skin")
     
-    # Generazione parenchima rugoso campionato da 3D U-Net-GAN
+    # 1. Parenchima fibroglandolare rugoso campionato da 3D U-Net-GAN
+    print("  * [1/5] Generazione parenchima fibroglandolare rugoso...")
     tissue_mesh = build_anatomical_rugose_parenchyma(kinematics, volume_3d, skin_mesh)
     scene.add_geometry(tissue_mesh, node_name="fibroglandular_tissue")
-    print(f"  * Tessuto fibroglandolare rugoso generato: {len(tissue_mesh.vertices)} vertici (confinato all'interno)")
+    print(f"    - Vertici: {len(tissue_mesh.vertices)}, Facce: {len(tissue_mesh.faces)}")
+
+    # 2. Mantello adiposo premammario sottocutaneo (VICTRE compartment.cxx)
+    print("  * [2/5] Generazione mantello adiposo sottocutaneo...")
+    fat_mesh = generate_subcutaneous_fat(kinematics, skin_mesh)
+    fat_mesh = sanitize_mesh(fat_mesh)
+    scene.add_geometry(fat_mesh, node_name="subcutaneous_fat")
+    print(f"    - Vertici: {len(fat_mesh.vertices)}, Facce: {len(fat_mesh.faces)}")
+
+    # 3. Albero galattoforo duttale (VICTRE duct.cxx)
+    print("  * [3/5] Generazione albero duttale galattoforo e lobuli TDLU...")
+    duct_mesh = generate_victre_ductal_tree(kinematics, num_lobes=14)
+    duct_mesh = sanitize_mesh(duct_mesh)
+    scene.add_geometry(duct_mesh, node_name="lactiferous_ducts")
+    print(f"    - Vertici: {len(duct_mesh.vertices)}, Facce: {len(duct_mesh.faces)}")
+
+    # 4. Legamenti di Cooper / Retinacula Cutis (VICTRE cooper.hxx)
+    print("  * [4/5] Generazione legamenti di Cooper (fasce connettivali)...")
+    cooper_mesh = generate_cooper_ligaments(tissue_mesh, skin_mesh, kinematics, num_ligaments=42)
+    if cooper_mesh is not None:
+        cooper_mesh = sanitize_mesh(cooper_mesh)
+        scene.add_geometry(cooper_mesh, node_name="cooper_ligaments")
+        print(f"    - Vertici: {len(cooper_mesh.vertices)}, Facce: {len(cooper_mesh.faces)}")
+
+    # 5. Muscolo Grande Pettorale (parete toracica posteriore)
+    print("  * [5/5] Generazione muscolo pettorale maggiore posteriore...")
+    pec_mesh = generate_pectoral_muscle(kinematics, skin_mesh)
+    pec_mesh = sanitize_mesh(pec_mesh)
+    scene.add_geometry(pec_mesh, node_name="pectoral_muscle")
+    print(f"    - Vertici: {len(pec_mesh.vertices)}, Facce: {len(pec_mesh.faces)}")
+
     print("  * Nota: Lesione tumorale omessa su richiesta (verra ricostruita e posizionata separatamente).")
         
     # -----------------------------------------------------------------
     # FASE 3: Esportazione GLB e Scena Blender
     # -----------------------------------------------------------------
-    print("\n[4/4] Esportazione modello 3D unificato...")
+    print("\n[4/4] Esportazione modello 3D unificato multi-strato...")
     if not output_dir:
         output_dir = os.path.join(MODULE_07_DIR, "output", resolved_pid)
     os.makedirs(output_dir, exist_ok=True)
     
     out_glb = os.path.join(output_dir, f"{resolved_pid}_unified_3d.glb")
     out_blend = os.path.join(output_dir, f"{resolved_pid}_unified_3d.blend")
+    out_preview = os.path.join(output_dir, f"{resolved_pid}_multi_layer_preview.png")
     
     with open(out_glb, "wb") as f:
         f.write(scene.export(file_type="glb"))
-    print(f"  * File GLB salvato: {out_glb}")
+    print(f"  * File GLB multi-strato salvato: {out_glb}")
     
     # Se Blender è disponibile, genera il file .blend con illuminazione e shader
     default_blender = r"C:\Users\Pierluca\OneDrive\Documenti\Blender\blender.exe"
@@ -311,16 +349,20 @@ def run_unified_pipeline(
     if os.path.exists(blender_exe):
         setup_script = os.path.join(CURRENT_DIR, "blender_setup.py")
         import subprocess
-        cmd = [blender_exe, "--background", "--python", setup_script, "--", out_glb, out_blend]
+        cmd = [blender_exe, "--background", "--python", setup_script, "--", out_glb, out_blend, out_preview]
         res = subprocess.run(cmd, capture_output=True, text=True)
         if os.path.exists(out_blend):
             print(f"  * File Scena Blender salvato: {out_blend}")
+        if os.path.exists(out_preview):
+            print(f"  * Rendering Preview salvato: {out_preview}")
             
     print("\n" + "=" * 75)
-    print(" RICOSTRUZIONE UNIFICATA COMPLETATA CON SUCCESSO!")
-    print(f" Modello: {out_glb}")
+    print(" RICOSTRUZIONE UNIFICATA MULTI-STRATO COMPLETATA CON SUCCESSO!")
+    print(f" Modello GLB: {out_glb}")
     if os.path.exists(out_blend):
-        print(f" Blender: {out_blend}")
+        print(f" Blender 3D : {out_blend}")
+    if os.path.exists(out_preview):
+        print(f" Preview    : {out_preview}")
     print("=" * 75)
     
     return out_glb, out_blend

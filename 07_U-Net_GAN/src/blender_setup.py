@@ -1,6 +1,6 @@
 """
-Script per creare una scena Blender (.blend) con materiali semitrasparenti e luci
-a partire dal file GLB generato da 3D U-Net-GAN.
+Script per creare una scena Blender (.blend) con materiali semitrasparenti e luci studio
+a partire dal file GLB multi-strato (Cute, Grasso sottocutaneo, Parenchima, Dotti galattofori, Legamenti di Cooper, Muscolo pettorale).
 """
 
 import sys
@@ -8,12 +8,13 @@ import os
 
 try:
     import bpy
+    import mathutils
     IN_BLENDER = True
 except ImportError:
     IN_BLENDER = False
 
 
-def setup_scene(glb_path: str, blend_output_path: str):
+def setup_scene(glb_path: str, blend_output_path: str, render_png_path: str = None):
     if not IN_BLENDER:
         print("[ERRORE] Eseguire all'interno di Blender!")
         return
@@ -21,14 +22,22 @@ def setup_scene(glb_path: str, blend_output_path: str):
     # 1. Pulisci la scena predefinita
     bpy.ops.wm.read_factory_settings(use_empty=True)
 
-    # 2. Importa il modello glTF/GLB
+    # 2. Configura World Studio con illuminazione d'ambiente morbida neutra
+    world = bpy.data.worlds.new("StudioWorld")
+    bpy.context.scene.world = world
+    world.use_nodes = True
+    bg = world.node_tree.nodes.get("Background")
+    if bg:
+        bg.inputs["Color"].default_value = (0.18, 0.19, 0.22, 1.0)
+        bg.inputs["Strength"].default_value = 0.90
+
+    # 3. Importa il modello glTF/GLB multi-layer
     print(f"[BLENDER] Importazione GLB: {glb_path}")
     bpy.ops.import_scene.gltf(filepath=glb_path)
 
-    # 3. Configura materiali e trasparenze
+    # 4. Configura materiali realistici per ciascuno strato anatomico
     for obj in bpy.context.scene.objects:
         if obj.type == 'MESH':
-            # Shade smooth
             bpy.context.view_layer.objects.active = obj
             bpy.ops.object.shade_smooth()
 
@@ -39,71 +48,89 @@ def setup_scene(glb_path: str, blend_output_path: str):
             name_lower = obj.name.lower()
             if bsdf:
                 if "skin" in name_lower:
-                    # Cute / Pelle: rosa tenue, molto trasparente
-                    bsdf.inputs["Base Color"].default_value = (1.0, 0.80, 0.76, 1.0)
-                    bsdf.inputs["Alpha"].default_value = 0.22
-                    bsdf.inputs["Roughness"].default_value = 0.4
-                    try:
-                        mat.blend_method = "BLEND"
-                    except Exception:
-                        pass
-                    if hasattr(mat, "surface_render_method"):
-                        try:
-                            mat.surface_render_method = "BLENDED"
-                        except Exception:
-                            pass
-                    mat.diffuse_color = (1.0, 0.80, 0.76, 0.22)
-                elif "tissue" in name_lower:
-                    # Tessuto fibroglandolare interno: arancio/rosa, semitrasparente
-                    bsdf.inputs["Base Color"].default_value = (0.95, 0.65, 0.40, 1.0)
+                    # Cute / Derme: rosa carne tenue, molto trasparente
+                    bsdf.inputs["Base Color"].default_value = (0.98, 0.82, 0.78, 1.0)
+                    bsdf.inputs["Alpha"].default_value = 0.12
+                    bsdf.inputs["Roughness"].default_value = 0.35
+                    if "Subsurface Weight" in bsdf.inputs:
+                        bsdf.inputs["Subsurface Weight"].default_value = 0.12
+                    mat.diffuse_color = (0.98, 0.82, 0.78, 0.12)
+                    
+                elif "fat" in name_lower or "adipose" in name_lower:
+                    # Grasso sottocutaneo / Adipe premammario: giallo avorio tenue semitrasparente
+                    bsdf.inputs["Base Color"].default_value = (0.95, 0.90, 0.58, 1.0)
+                    bsdf.inputs["Alpha"].default_value = 0.18
+                    bsdf.inputs["Roughness"].default_value = 0.55
+                    if "Subsurface Weight" in bsdf.inputs:
+                        bsdf.inputs["Subsurface Weight"].default_value = 0.20
+                    mat.diffuse_color = (0.95, 0.90, 0.58, 0.18)
+                    
+                elif "tissue" in name_lower or "parenchyma" in name_lower or "fibroglandular" in name_lower:
+                    # Tessuto parenchimale fibroglandolare: arancio ambrato semitrasparente
+                    bsdf.inputs["Base Color"].default_value = (0.92, 0.62, 0.38, 1.0)
                     bsdf.inputs["Alpha"].default_value = 0.45
-                    bsdf.inputs["Roughness"].default_value = 0.5
+                    bsdf.inputs["Roughness"].default_value = 0.45
+                    mat.diffuse_color = (0.92, 0.62, 0.38, 0.45)
+                    
+                elif "duct" in name_lower or "lactiferous" in name_lower:
+                    # Rete duttale galattofora (albero VICTRE): bianco latte perlaceo opaco
+                    bsdf.inputs["Base Color"].default_value = (0.96, 0.97, 1.0, 1.0)
+                    bsdf.inputs["Alpha"].default_value = 0.94
+                    bsdf.inputs["Roughness"].default_value = 0.18
+                    mat.diffuse_color = (0.96, 0.97, 1.0, 0.94)
+                    
+                elif "cooper" in name_lower or "ligament" in name_lower:
+                    # Legamenti di Cooper (retinacula cutis): cordoni fibrosi argentei
+                    bsdf.inputs["Base Color"].default_value = (0.86, 0.89, 0.95, 1.0)
+                    bsdf.inputs["Alpha"].default_value = 0.85
+                    bsdf.inputs["Roughness"].default_value = 0.25
+                    mat.diffuse_color = (0.86, 0.89, 0.95, 0.85)
+                    
+                elif "pectoral" in name_lower or "muscle" in name_lower:
+                    # Muscolo pettorale maggiore (parete toracica): rosso muscolare profondo
+                    bsdf.inputs["Base Color"].default_value = (0.65, 0.16, 0.16, 1.0)
+                    bsdf.inputs["Alpha"].default_value = 0.85
+                    bsdf.inputs["Roughness"].default_value = 0.50
+                    mat.diffuse_color = (0.65, 0.16, 0.16, 0.85)
+
+                try:
+                    mat.blend_method = "BLEND"
+                except Exception:
+                    pass
+                if hasattr(mat, "surface_render_method"):
                     try:
-                        mat.blend_method = "BLEND"
+                        mat.surface_render_method = "BLENDED"
                     except Exception:
                         pass
-                    if hasattr(mat, "surface_render_method"):
-                        try:
-                            mat.surface_render_method = "BLENDED"
-                        except Exception:
-                            pass
-                    mat.diffuse_color = (0.95, 0.65, 0.40, 0.45)
-                elif "lesion" in name_lower:
-                    # Lesione tumorale: rosso brillante solido
-                    bsdf.inputs["Base Color"].default_value = (0.95, 0.05, 0.05, 1.0)
-                    bsdf.inputs["Roughness"].default_value = 0.2
-                    mat.diffuse_color = (0.95, 0.05, 0.05, 1.0)
-                    if "Emission Color" in bsdf.inputs:
-                        bsdf.inputs["Emission Color"].default_value = (0.5, 0.02, 0.02, 1.0)
-                    elif "Emission" in bsdf.inputs:
-                        bsdf.inputs["Emission"].default_value = (0.5, 0.02, 0.02, 1.0)
-                    if "Emission Strength" in bsdf.inputs:
-                        bsdf.inputs["Emission Strength"].default_value = 1.0
 
             obj.data.materials.clear()
             obj.data.materials.append(mat)
 
-    # 4. Configura illuminazione a 3 punti
-    # Luce Sole / Chiave
+    # 5. Illuminazione Studio Multi-Punto
     sun_data = bpy.data.lights.new(name="Sun_Key", type='SUN')
-    sun_data.energy = 2.5
+    sun_data.energy = 2.8
     sun_obj = bpy.data.objects.new("Sun_Key", sun_data)
-    sun_obj.rotation_euler = (0.7, 0.2, 0.5)
+    sun_obj.rotation_euler = (0.6, 0.3, 0.4)
     bpy.context.collection.objects.link(sun_obj)
 
-    # Luce Fill soffusa
     fill_data = bpy.data.lights.new(name="Light_Fill", type='POINT')
-    fill_data.energy = 200.0
-    fill_data.color = (0.9, 0.95, 1.0)
+    fill_data.energy = 220.0
+    fill_data.color = (0.92, 0.95, 1.0)
     fill_obj = bpy.data.objects.new("Light_Fill", fill_data)
-    fill_obj.location = (-50.0, -50.0, 50.0)
+    fill_obj.location = (-100.0, -80.0, 120.0)
     bpy.context.collection.objects.link(fill_obj)
 
-    # 5. Configura Telecamera puntata sul modello
+    rim_data = bpy.data.lights.new(name="Light_Rim", type='POINT')
+    rim_data.energy = 160.0
+    rim_data.color = (1.0, 0.96, 0.90)
+    rim_obj = bpy.data.objects.new("Light_Rim", rim_data)
+    rim_obj.location = (80.0, 100.0, -30.0)
+    bpy.context.collection.objects.link(rim_obj)
+
+    # 6. Configura Telecamera
     min_co = [float('inf')] * 3
     max_co = [float('-inf')] * 3
     has_mesh = False
-    import mathutils
     for obj in bpy.context.scene.objects:
         if obj.type == 'MESH':
             has_mesh = True
@@ -121,27 +148,51 @@ def setup_scene(glb_path: str, blend_output_path: str):
         bpy.context.collection.objects.link(cam_obj)
         bpy.context.scene.camera = cam_obj
 
-        # Posiziona la camera di lato/frontale a distanza proporzionata
-        cam_obj.location = (center[0] + size * 1.6, center[1] - size * 1.8, center[2] + size * 0.7)
-        direction = mathutils.Vector(center) - cam_obj.location
+        # Vista Prospettica Anterolaterale 3D (3/4 view)
+        target = mathutils.Vector((center[0], center[1] + size * 0.05, center[2] + size * 0.10))
+        cam_obj.location = (
+            center[0] + size * 1.15,
+            center[1] - size * 0.60,
+            center[2] + size * 0.95
+        )
+        direction = target - cam_obj.location
         rot_quat = direction.to_track_quat('-Z', 'Y')
         cam_obj.rotation_euler = rot_quat.to_euler()
 
-    # 6. Imposta la vista 3D in modalita Material Preview
-    try:
-        for screen in bpy.data.screens:
-            for area in screen.areas:
-                if area.type == 'VIEW_3D':
-                    for space in area.spaces:
-                        if space.type == 'VIEW_3D':
-                            space.shading.type = 'MATERIAL'
-    except Exception:
-        pass
-
-    # 7. Salva il file .blend
+    # 7. Salva la scena .blend
     os.makedirs(os.path.dirname(os.path.abspath(blend_output_path)), exist_ok=True)
     bpy.ops.wm.save_as_mainfile(filepath=blend_output_path)
     print(f"[BLENDER] Scena salvata in: {blend_output_path}")
+
+    # 8. Rendering Preview
+    if render_png_path and has_mesh:
+        os.makedirs(os.path.dirname(os.path.abspath(render_png_path)), exist_ok=True)
+        bpy.context.scene.render.filepath = render_png_path
+        bpy.context.scene.render.resolution_x = 1024
+        bpy.context.scene.render.resolution_y = 1024
+        try:
+            bpy.ops.render.render(write_still=True)
+            print(f"[BLENDER] Preview 3D renderizzata in: {render_png_path}")
+        except Exception as e:
+            print(f"[BLENDER] Render fallito (non critico): {e}")
+
+        # Vista 2: Profilo Anatomico Laterale MLO
+        profile_png = render_png_path.replace(".png", "_profile.png")
+        target_prof = mathutils.Vector((center[0], center[1], center[2]))
+        cam_obj.location = (
+            center[0] + size * 1.65,
+            center[1],
+            center[2]
+        )
+        direction = target_prof - cam_obj.location
+        rot_quat = direction.to_track_quat('-Z', 'Y')
+        cam_obj.rotation_euler = rot_quat.to_euler()
+        bpy.context.scene.render.filepath = profile_png
+        try:
+            bpy.ops.render.render(write_still=True)
+            print(f"[BLENDER] Profilo anatomico renderizzato in: {profile_png}")
+        except Exception as e:
+            pass
 
 
 if __name__ == "__main__":
@@ -150,4 +201,5 @@ if __name__ == "__main__":
         idx = args.index("--")
         custom_args = args[idx + 1:]
         if len(custom_args) >= 2:
-            setup_scene(custom_args[0], custom_args[1])
+            r_path = custom_args[2] if len(custom_args) >= 3 else None
+            setup_scene(custom_args[0], custom_args[1], r_path)
