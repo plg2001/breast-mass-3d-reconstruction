@@ -29,12 +29,25 @@ Tesi/
 │   ├── run_smrd.bat                          # Launcher pipeline SMRD
 │   └── README.md                             # Dettagli matematici e benchmark clinico
 │
-├── 05_Ricostruzione_Mammella_3D/             # [SUPERFICIE MAMMELLA] Guscio 3D Bi-planare (Skin Envelope)
-│   ├── breast_surface_reconstruction.py      # Algoritmo lofting quad-ellittico da CC ed MLO
-│   ├── run_surface_reconstruction.bat        # Launcher automatico per ricostruzione e preview
-│   ├── open_in_blender.bat                   # Apertura immediata del modello 3D e della scena
-│   ├── output/                               # Mesh .obj, .glb, scena completa e rendering 6-viste
-│   └── README.md                             # Documentazione geometrica e istruzioni
+├── 05_Ricostruzione_Superficie_Seno_Paper/   # [SUPERFICIE SENO] Ricostruzione Bi-planare (Huang / Pinto)
+│   ├── main.py                               # Pipeline clinica di superficie
+│   ├── kinematics.py                         # Allineamento bi-planare PNL e quote epipolari
+│   ├── surface_reconstruction.py             # Lofting super-ellittico organico (curve di Lamé)
+│   ├── segmentation.py                       # Segmentazione automatica bordo pelle
+│   ├── run_reconstruction.bat                # Launcher rapido per superficie cutanea
+│   ├── open_in_blender.bat                   # Apertura immediata della superficie in Blender
+│   └── README.md                             # Documentazione teorica e paper
+│
+├── 06_U-Net_GAN/                             # [DEEP LEARNING + FDA VICTRE] Modello 3D Multi-Strato
+│   ├── src/
+│   │   ├── unified_reconstruction.py         # Pipeline unificata 14 strati anatomici
+│   │   ├── victre_anatomy.py                 # Generatore bio-funzionale FDA VICTRE (dotti, vene, nervi, ecc.)
+│   │   ├── blender_setup.py                  # Setup scena Blender con shader PBR e SSS
+│   │   ├── model.py                          # Architettura 3D U-Net Generatore + Discriminatore GAN
+│   │   └── inference.py                      # Inferenza della densità volumetrica da lastre 2D
+│   ├── training result/                      # Pesi pre-addestrati unet3d_generator.pth
+│   ├── run_inference.bat                     # Launcher completo per ricostruzione multi-strato
+│   └── output/                               # Modelli .glb, scene .blend e volumi 3D .npy
 │
 ├── data/                                     # Dataset clinico mammografico (CBIS-DDSM)
 ├── Mammography3D.bat                         # Launcher principale rapido nella radice
@@ -45,14 +58,20 @@ Tesi/
 
 ## 🚀 Avvio Rapido
 
-1. **Ricostruzione 3D Superficie Mammella (Guscio Cutaneo + Sezioni 2D)**:
-   Entra in `05_Ricostruzione_Mammella_3D` ed esegui `run_surface_reconstruction.bat` oppure da terminale:
+1. **Ricostruzione 3D Anatomica Completa a 14 Strati (3D U-Net-GAN + FDA VICTRE)**:
+   Entra in `06_U-Net_GAN` ed esegui `run_inference.bat` oppure da terminale:
    ```powershell
-   python 05_Ricostruzione_Mammella_3D/breast_surface_reconstruction.py --patient_id P_00005
+   python 06_U-Net_GAN/src/unified_reconstruction.py --patient_id P_00081
    ```
-   Genera il file OBJ/GLB della pelle, la scena con lastre semitrasparenti e la figura clinica a 6 viste.
+   Genera il modello 3D completo a 14 strati (`.glb`), la scena Blender (`.blend`) con materiali semitrasparenti PBR/SSS e il volume neurale (`breast_3d_volume.npy`).
 
-2. **Ricostruzione 3D Sola Lesione**:
+2. **Ricostruzione 3D Superficie Seno (Sola Cute Esterna)**:
+   Entra in `05_Ricostruzione_Superficie_Seno_Paper` ed esegui `run_reconstruction.bat` oppure da terminale:
+   ```powershell
+   python 05_Ricostruzione_Superficie_Seno_Paper/main.py --patient_id P_00081
+   ```
+
+3. **Ricostruzione 3D Sola Lesione Tumorale**:
    * Modello SMRD (consigliato per realismo biologico):
      ```powershell
      python 04_Ricostruzione_Lesione_SMRD_Paper/smrd_lesion_reconstruction.py
@@ -62,5 +81,5 @@ Tesi/
      python 01_Ricostruzione_Lesione_Ling_Shao_Paper/lesion_pvc_reconstruction.py
      ```
 
-3. **Applicazione Desktop (Mammography 3D)**:
+4. **Applicazione Desktop (Mammography 3D)**:
    Fai doppio clic su `Mammography3D.bat` nella cartella principale.

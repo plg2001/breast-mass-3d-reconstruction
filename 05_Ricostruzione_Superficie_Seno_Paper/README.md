@@ -1,4 +1,4 @@
-# Modulo 06: Ricostruzione 3D della Superficie del Seno da Mammografie 2D (Paper Huang / Pinto / Kita)
+# Modulo 05: Ricostruzione 3D della Superficie del Seno da Mammografie 2D (Paper Huang / Pinto / Kita)
 
 Questo modulo fornisce un'implementazione autonoma per la **generazione tridimensionale della superficie cutanea pura della mammella** (*breast skin envelope*) a partire dalla coppia standard di mammografie bi-planari 2D: vista Cranio-Caudale (**CC**) e vista Medio-Laterale Obliqua (**MLO**).
 
@@ -38,10 +38,10 @@ Il modello 3D è generato in **posizione eretta anatomica** standard:
 ### 2. Esecuzione da Riga di Comando (CLI)
 ```powershell
 # Esecuzione per il paziente P_00081
-python 06_Ricostruzione_Superficie_Seno_Paper/main.py --patient_id P_00081
+python 05_Ricostruzione_Superficie_Seno_Paper/main.py --patient_id P_00081
 
 # Esecuzione per un altro paziente del dataset (es. P_00001, P_00005)
-python 06_Ricostruzione_Superficie_Seno_Paper/main.py --patient_id P_00001
+python 05_Ricostruzione_Superficie_Seno_Paper/main.py --patient_id P_00001
 ```
 
 ---

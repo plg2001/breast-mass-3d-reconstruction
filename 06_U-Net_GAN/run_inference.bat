@@ -33,7 +33,7 @@ if not "%TARGET_PID%"=="" goto DO_RUN
 
 :MENU
 echo Scegli la modalita di ricostruzione:
-echo   [1] Ricostruzione UNIFICATA: Superficie Anatomica (Modulo 06) + Tumore U-Net-GAN (Modulo 07) [CONSIGLIATA]
+echo   [1] Ricostruzione UNIFICATA: Superficie Anatomica (Modulo 05) + Anatomia 3D U-Net-GAN (Modulo 06) [CONSIGLIATA]
 echo   [2] Ricostruzione 3D U-Net-GAN pura (singola vista con griglia a 10 slice)
 echo   [3] Test rapido con mammografia sintetica
 echo.
@@ -69,7 +69,7 @@ if /i "%TARGET_PID%"=="SYNTHETIC" (
     set "GENERATED_GLB=output\synthetic\breast_3d.glb"
 ) else if /i "%MODE%"=="UNIFIED" (
     echo Avvio RICOSTRUZIONE UNIFICATA per paziente: %TARGET_PID%
-    echo (Superficie cutanea liscia Modulo 06 + Lesione interna 3D U-Net-GAN Modulo 07)
+    echo (Superficie cutanea liscia Modulo 05 + Anatomia multi-strato 3D U-Net-GAN Modulo 06)
     echo ===============================================================================
     echo.
     "%PYTHON_CMD%" src\unified_reconstruction.py --patient_id "%TARGET_PID%"

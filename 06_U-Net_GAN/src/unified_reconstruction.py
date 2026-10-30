@@ -22,11 +22,11 @@ from skimage.measure import marching_cubes
 # Percorsi ai moduli
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(os.path.dirname(CURRENT_DIR))
-MODULE_06_DIR = os.path.join(PROJECT_ROOT, "06_Ricostruzione_Superficie_Seno_Paper")
-MODULE_07_DIR = os.path.join(PROJECT_ROOT, "07_U-Net_GAN")
+MODULE_05_DIR = os.path.join(PROJECT_ROOT, "05_Ricostruzione_Superficie_Seno_Paper")
+MODULE_06_DIR = os.path.dirname(CURRENT_DIR)
 
-if MODULE_06_DIR not in sys.path:
-    sys.path.insert(0, MODULE_06_DIR)
+if MODULE_05_DIR not in sys.path:
+    sys.path.insert(0, MODULE_05_DIR)
 if CURRENT_DIR not in sys.path:
     sys.path.insert(0, CURRENT_DIR)
 
@@ -286,7 +286,7 @@ def run_unified_pipeline(
     # FASE 2: Inferenza 3D U-Net-GAN + Anatomia Iper-Realistica FDA VICTRE
     # -----------------------------------------------------------------
     print("\n[3/4] Generazione strati anatomici iper-realistici (FDA VICTRE + 3D U-Net-GAN)...")
-    weights_path = os.path.join(MODULE_07_DIR, "training result", "unet3d_generator.pth")
+    weights_path = os.path.join(MODULE_06_DIR, "training result", "unet3d_generator.pth")
     generator = load_generator(weights_path)
     
     # Preprocessing clinico dell'immagine MLO
@@ -385,7 +385,7 @@ def run_unified_pipeline(
     # -----------------------------------------------------------------
     print("\n[4/4] Esportazione modello 3D unificato multi-strato...")
     if not output_dir:
-        output_dir = os.path.join(MODULE_07_DIR, "output", resolved_pid)
+        output_dir = os.path.join(MODULE_06_DIR, "output", resolved_pid)
     os.makedirs(output_dir, exist_ok=True)
     
     out_glb = os.path.join(output_dir, f"{resolved_pid}_unified_3d.glb")
