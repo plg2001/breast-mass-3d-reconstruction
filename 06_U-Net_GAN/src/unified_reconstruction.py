@@ -368,13 +368,13 @@ def run_unified_pipeline(
 
     # 12. Innervazione sensoriale cutanea (4° ramo cutaneo laterale del nervo intercostale + rami mediali)
     print("  * [12/13] Generazione nervi sensoriali cutanei (4° intercostale)...")
-    nerves_mesh = generate_mammary_nerves(kinematics)
+    nerves_mesh = generate_mammary_nerves(kinematics, skin_mesh)
     nerves_mesh = sanitize_mesh(nerves_mesh)
     scene.add_geometry(nerves_mesh, node_name="mammary_nerves")
 
     # 13. Plesso linfatico subareolare di Sappey e vasi collettori ascellari
     print("  * [13/13] Generazione plesso linfatico di Sappey e vasi ascellari...")
-    lymph_vessels_mesh = generate_lymphatic_vessels(kinematics)
+    lymph_vessels_mesh = generate_lymphatic_vessels(kinematics, skin_mesh)
     lymph_vessels_mesh = sanitize_mesh(lymph_vessels_mesh)
     scene.add_geometry(lymph_vessels_mesh, node_name="lymphatic_vessels")
 

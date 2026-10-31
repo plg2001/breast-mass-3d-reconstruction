@@ -49,6 +49,17 @@ Tesi/
 │   ├── run_inference.bat                     # Launcher completo per ricostruzione multi-strato
 │   └── output/                               # Modelli .glb, scene .blend e volumi 3D .npy
 │
+├── 07_Ricostruzione_Totale_Mammella_Lesione/ # [INTEGRAZIONE TOTALE] Mammella a 14 Strati + Tumore SMRD
+│   ├── src/
+│   │   ├── total_reconstruction.py           # Pipeline unificata totale (Mammella + Tumore localizzato)
+│   │   ├── localization_engine.py            # Triangolazione epipolare stereotassica 3D (Kita / Huang)
+│   │   ├── smrd_adapter.py                   # Integrazione Spicule Engine SMRD (De Sisternes et al.)
+│   │   ├── victre_anatomy.py                 # Generatore 14 strati biologici completi
+│   │   └── blender_total_setup.py            # Setup scena Blender a 15 oggetti PBR
+│   ├── run_total_reconstruction.bat          # Launcher per la ricostruzione totale
+│   ├── open_in_blender.bat                   # Apertura immediata della scena totale in Blender
+│   └── README.md                             # Documentazione scientifica e manuale clinico
+│
 ├── data/                                     # Dataset clinico mammografico (CBIS-DDSM)
 ├── Mammography3D.bat                         # Launcher principale rapido nella radice
 └── README.md                                 # Questo file
@@ -58,12 +69,18 @@ Tesi/
 
 ## 🚀 Avvio Rapido
 
-1. **Ricostruzione 3D Anatomica Completa a 14 Strati (3D U-Net-GAN + FDA VICTRE)**:
-   Entra in `06_U-Net_GAN` ed esegui `run_inference.bat` oppure da terminale:
+1. **Ricostruzione 3D Totale: Mammella a 14 Strati + Lesione Tumorale SMRD**:
+   Entra in `07_Ricostruzione_Totale_Mammella_Lesione` ed esegui `run_total_reconstruction.bat` oppure da terminale:
+   ```powershell
+   python 07_Ricostruzione_Totale_Mammella_Lesione/src/total_reconstruction.py --patient_id P_00081
+   ```
+   Genera il modello 3D totale a 15 elementi (`.glb`), la scena Blender fotorealistica (`.blend`) e il report clinico completo (`_total_clinical_report.json`).
+
+2. **Ricostruzione 3D Anatomica della Mammella (14 Strati senza lesione)**:
+   Entra in `06_U-Net_GAN` ed esegui `run_inference.bat` oppure:
    ```powershell
    python 06_U-Net_GAN/src/unified_reconstruction.py --patient_id P_00081
    ```
-   Genera il modello 3D completo a 14 strati (`.glb`), la scena Blender (`.blend`) con materiali semitrasparenti PBR/SSS e il volume neurale (`breast_3d_volume.npy`).
 
 2. **Ricostruzione 3D Superficie Seno (Sola Cute Esterna)**:
    Entra in `05_Ricostruzione_Superficie_Seno_Paper` ed esegui `run_reconstruction.bat` oppure da terminale:

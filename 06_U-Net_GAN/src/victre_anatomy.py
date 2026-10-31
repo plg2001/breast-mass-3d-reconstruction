@@ -106,6 +106,34 @@ def create_curved_tube(p1, p2, r_start, r_end, num_subsegs=2, curvature=0.7, sec
     return subsegs
 
 
+def clamp_mesh_inside_skin(mesh, skin_mesh, min_inward_depth=3.0):
+    """
+    Garantisce matematicamente che NESSUN vertice di 'mesh' sporga all'esterno della cute.
+    Se un vertice si trova all'esterno della cute o a una profondità inferiore a 'min_inward_depth',
+    viene proiettato verso l'interno lungo la normale della superficie cutanea più vicina.
+    """
+    if mesh is None or len(mesh.vertices) == 0 or skin_mesh is None:
+        return mesh
+
+    skin_kdt = cKDTree(skin_mesh.vertices)
+    _, indices = skin_kdt.query(mesh.vertices)
+
+    skin_pts = skin_mesh.vertices[indices]
+    skin_norms = np.array(skin_mesh.vertex_normals[indices], dtype=np.float64)
+    norms = np.linalg.norm(skin_norms, axis=1, keepdims=True)
+    norms[norms == 0] = 1.0
+    skin_norms = skin_norms / norms
+
+    vecs = mesh.vertices - skin_pts
+    outward_dist = np.sum(vecs * skin_norms, axis=1)
+
+    violations = outward_dist > -min_inward_depth
+    if np.any(violations):
+        mesh.vertices[violations] = skin_pts[violations] - min_inward_depth * skin_norms[violations]
+
+    return mesh
+
+
 def get_parenchyma_point(kinematics, t_ratio, theta, rho=0.55):
     """
     Calcola le coordinate 3D all'interno del parenchima fibroglandolare del paziente
@@ -304,10 +332,11 @@ def generate_victre_ductal_tree(kinematics, volume_3d=None, num_lobes=14, rng_se
 def generate_superficial_veins(kinematics, skin_mesh=None, rng_seed=42):
     """
     Genera il plesso venoso superficiale sottocutaneo:
-    - Cerchio venoso peri-areolare di Haller (Circulus Venosus Halleri) attorno all'areola
+    - Cerchio venoso peri-areolare di Haller (Circulus Venosus Halleri) attorno alla base areolare
     - 7 tronchi venosi superficiali con diramazioni periferiche
     Tutti i nodi sono calcolati proiettando verso l'interno lungo le normali della cute
-    (profondità 2.5 - 3.0 mm) per garantire che NESSUNA vena sporga all'esterno della pelle.
+    (profondità 3.8 mm) e vincolati rigorosamente mediante clamp_mesh_inside_skin
+    per garantire matematicamente che NESSUNA vena sporga all'esterno della pelle.
     """
     rng = np.random.RandomState(rng_seed)
     pnl = kinematics.pnl_mm
@@ -316,9 +345,9 @@ def generate_superficial_veins(kinematics, skin_mesh=None, rng_seed=42):
     segments = []
     
     if skin_mesh is not None:
-        def get_subcutaneous_node(target_z, target_angle, depth_inward=2.8):
+        def get_subcutaneous_node(target_z, target_angle, depth_inward=3.8):
             z_diff = np.abs(skin_mesh.vertices[:, 2] - target_z)
-            cands = np.where(z_diff < 4.5)[0]
+            cands = np.where(z_diff < 5.0)[0]
             if len(cands) == 0:
                 cands = np.argsort(z_diff)[:60]
             
@@ -338,50 +367,53 @@ def generate_superficial_veins(kinematics, skin_mesh=None, rng_seed=42):
                 
             return p_skin - depth_inward * n_skin
 
-        # 1. Cerchio Venoso Peri-Areolare di Haller (a profondità z ~ pnl - 9.0 mm, sotto l'areola)
-        ring_z = pnl - 9.0
+        # 1. Cerchio Venoso Peri-Areolare di Haller (a profondità z ~ 78% PNL, sicuro e sottocutaneo)
+        ring_z = pnl * 0.78
         num_ring = 16
-        ring_nodes = [get_subcutaneous_node(ring_z, -np.pi + 2.0 * np.pi * i / num_ring, depth_inward=2.5) for i in range(num_ring)]
+        ring_nodes = [get_subcutaneous_node(ring_z, -np.pi + 2.0 * np.pi * i / num_ring, depth_inward=3.8) for i in range(num_ring)]
         for i in range(num_ring):
             p1 = ring_nodes[i]
             p2 = ring_nodes[(i + 1) % num_ring]
-            segs = create_curved_tube(p1, p2, 0.42, 0.42, num_subsegs=1, curvature=0.0, sections=6)
+            segs = create_curved_tube(p1, p2, 0.38, 0.38, num_subsegs=1, curvature=0.0, sections=6)
             segments.extend(segs)
             
-        # 2. 7 Tronchi Venosi Superficiali nel Sottocute
-        z_steps = [pnl * 0.75, pnl * 0.58, pnl * 0.42]
+        # 2. 7 Tronchi Venosi Superficiali nel Sottocute con passi densi e conformi
+        z_steps = np.linspace(ring_z, pnl * 0.24, 7)[1:]
         num_veins = 7
         for i in range(num_veins):
-            th = -np.pi + 2.0 * np.pi * i / num_veins + rng.uniform(-0.08, 0.08)
+            th = -np.pi + 2.0 * np.pi * i / num_veins + rng.uniform(-0.06, 0.06)
             r_idx = int(round(i * (num_ring / float(num_veins)))) % num_ring
             p_prev = ring_nodes[r_idx]
             
-            r_curr = 0.48
+            r_curr = 0.44
             for z_s in z_steps:
-                p_next = get_subcutaneous_node(z_s, th, depth_inward=2.8)
-                segs = create_curved_tube(p_prev, p_next, r_curr, r_curr * 0.88, num_subsegs=1, curvature=0.0, sections=6)
+                th_step = th + rng.uniform(-0.04, 0.04)
+                p_next = get_subcutaneous_node(z_s, th_step, depth_inward=4.0)
+                segs = create_curved_tube(p_prev, p_next, r_curr, r_curr * 0.92, num_subsegs=1, curvature=0.0, sections=6)
                 segments.extend(segs)
                 p_prev = p_next
-                r_curr *= 0.88
+                r_curr *= 0.92
                 
             # Biforcazioni periferiche (z ~ pnl * 0.22)
-            for d_th in [-0.22, 0.22]:
+            for d_th in [-0.18, 0.18]:
                 th_trib = th + d_th
-                p_end = get_subcutaneous_node(pnl * 0.22, th_trib, depth_inward=2.8)
-                segs = create_curved_tube(p_prev, p_end, r_curr, 0.25, num_subsegs=1, curvature=0.0, sections=5)
+                p_end = get_subcutaneous_node(pnl * 0.22, th_trib, depth_inward=3.8)
+                segs = create_curved_tube(p_prev, p_end, r_curr, 0.24, num_subsegs=1, curvature=0.0, sections=5)
                 segments.extend(segs)
     else:
-        # Fallback analitico interno (rho = 0.86 per essere sicuri al 100%)
+        # Fallback analitico interno (rho = 0.82 per essere sicuri al 100%)
         num_veins = 7
         for i in range(num_veins):
             th = 2.0 * np.pi * i / num_veins
-            p1 = get_subcutaneous_point(kinematics, 0.85, th, rho=0.86)
-            p2 = get_subcutaneous_point(kinematics, 0.50, th, rho=0.86)
-            p3 = get_subcutaneous_point(kinematics, 0.25, th, rho=0.85)
-            segments.extend(create_curved_tube(p1, p2, 0.45, 0.35, num_subsegs=1, curvature=0.0, sections=6))
-            segments.extend(create_curved_tube(p2, p3, 0.35, 0.25, num_subsegs=1, curvature=0.0, sections=5))
+            p1 = get_subcutaneous_point(kinematics, 0.78, th, rho=0.82)
+            p2 = get_subcutaneous_point(kinematics, 0.50, th, rho=0.82)
+            p3 = get_subcutaneous_point(kinematics, 0.20, th, rho=0.80)
+            segments.extend(create_curved_tube(p1, p2, 0.42, 0.32, num_subsegs=1, curvature=0.0, sections=6))
+            segments.extend(create_curved_tube(p2, p3, 0.32, 0.22, num_subsegs=1, curvature=0.0, sections=5))
 
     veins_mesh = trimesh.util.concatenate(segments)
+    if skin_mesh is not None:
+        veins_mesh = clamp_mesh_inside_skin(veins_mesh, skin_mesh, min_inward_depth=3.5)
     vein_color = np.array([30, 95, 205, 220], dtype=np.uint8)
     veins_mesh.visual.vertex_colors = np.tile(vein_color, (len(veins_mesh.vertices), 1))
     return veins_mesh
@@ -514,7 +546,7 @@ def generate_nipple_areola_complex(kinematics, skin_mesh=None):
     return nac_mesh
 
 
-def generate_mammary_nerves(kinematics, rng_seed=42):
+def generate_mammary_nerves(kinematics, skin_mesh=None, rng_seed=42):
     """
     Genera l'innervazione sensoriale cutanea mammaria:
     - 4° Ramo Cutaneo Laterale del Nervo Intercostale (decorre attraverso il mantello adiposo verso il NAC)
@@ -524,11 +556,10 @@ def generate_mammary_nerves(kinematics, rng_seed=42):
     rng = np.random.RandomState(rng_seed)
     pnl = kinematics.pnl_mm
     _, _, _, Xc_apex, Zc_apex = kinematics.get_slice_parameters(kinematics.num_depth_slices - 1)
-    apex_center = np.array([Xc_apex, Zc_apex, pnl])
+    apex_center = np.array([Xc_apex, Zc_apex, pnl * 0.85])
     segments = []
 
     # 1. 4° Nervo Intercostale Laterale (principale nervo sensoriale del capezzolo)
-    # Origine parete laterale toracica (t ~ 0.22, theta ~ 0.12 pi)
     p_lat_origin = get_parenchyma_point(kinematics, 0.22, np.pi * 0.12, rho=0.88)
     p_lat_mid = get_parenchyma_point(kinematics, 0.55, np.pi * 0.08, rho=0.84)
     p_lat_pre = get_parenchyma_point(kinematics, 0.78, np.pi * 0.05, rho=0.72)
@@ -536,9 +567,9 @@ def generate_mammary_nerves(kinematics, rng_seed=42):
     segments.extend(create_curved_tube(p_lat_origin, p_lat_mid, 0.45, 0.36, num_subsegs=2, curvature=0.5, sections=5))
     segments.extend(create_curved_tube(p_lat_mid, p_lat_pre, 0.36, 0.28, num_subsegs=2, curvature=0.4, sections=5))
 
-    # Ramificazioni terminali che circondano e innervano areola e capezzolo
-    for d_th, offset_z in [(-0.15, -1.5), (0.0, -1.0), (0.15, -1.8)]:
-        p_term = apex_center + np.array([4.0 * np.cos(d_th), 4.0 * np.sin(d_th), offset_z])
+    # Ramificazioni terminali verso areola e capezzolo (rimangono sottocutanee)
+    for d_th, offset_z in [(-0.15, -2.5), (0.0, -2.0), (0.15, -2.8)]:
+        p_term = apex_center + np.array([3.5 * np.cos(d_th), 3.5 * np.sin(d_th), offset_z])
         segments.extend(create_curved_tube(p_lat_pre, p_term, 0.25, 0.15, num_subsegs=1, curvature=0.0, sections=4))
 
     # 2. Ramo Cutaneo Anteriore Mediale (3°-4° intercostale)
@@ -549,15 +580,17 @@ def generate_mammary_nerves(kinematics, rng_seed=42):
     segments.extend(create_curved_tube(p_med_mid, p_med_term, 0.28, 0.18, num_subsegs=1, curvature=0.0, sections=4))
 
     nerve_mesh = trimesh.util.concatenate(segments)
+    if skin_mesh is not None:
+        nerve_mesh = clamp_mesh_inside_skin(nerve_mesh, skin_mesh, min_inward_depth=3.0)
     nerve_color = np.array([245, 225, 55, 235], dtype=np.uint8)
     nerve_mesh.visual.vertex_colors = np.tile(nerve_color, (len(nerve_mesh.vertices), 1))
     return nerve_mesh
 
 
-def generate_lymphatic_vessels(kinematics, rng_seed=42):
+def generate_lymphatic_vessels(kinematics, skin_mesh=None, rng_seed=42):
     """
     Genera il sistema vascolare linfatico mammario:
-    - Plesso Linfatico Subareolare di Sappey (anastomosi circolare periareolare)
+    - Plesso Linfatico Subareolare di Sappey (anastomosi circolare periareolare a profondità protetta)
     - Vasi Linfatici Collettori Ascellari che decorrono nel Quadrante Supero-Esterno (UOQ)
       verso i linfonodi intramammari e la stazione ascellare.
     """
@@ -566,16 +599,17 @@ def generate_lymphatic_vessels(kinematics, rng_seed=42):
     _, _, _, Xc_apex, Zc_apex = kinematics.get_slice_parameters(kinematics.num_depth_slices - 1)
     segments = []
 
-    # 1. Plesso di Sappey (anello linfatico subareolare, r ~ 7.0 mm)
-    r_sappey = 7.0
+    # 1. Plesso di Sappey (anello linfatico subareolare, r ~ 4.8 mm, profondità sicura z ~ 80% PNL)
+    r_sappey = 4.8
     num_nodes = 10
     pts_ring = []
+    z_sappey = pnl * 0.80
     for i in range(num_nodes):
         th = 2.0 * np.pi * i / num_nodes
         pt = np.array([
             Xc_apex + r_sappey * np.cos(th),
             Zc_apex + r_sappey * np.sin(th),
-            pnl - 2.8 + rng.uniform(-0.3, 0.3)
+            z_sappey + rng.uniform(-0.2, 0.2)
         ])
         pts_ring.append(pt)
     for i in range(num_nodes):
@@ -598,6 +632,8 @@ def generate_lymphatic_vessels(kinematics, rng_seed=42):
     segments.extend(create_curved_tube(p_mid2, p_lymph_target2, 0.24, 0.18, num_subsegs=2, curvature=0.4, sections=5))
 
     lymph_mesh = trimesh.util.concatenate(segments)
+    if skin_mesh is not None:
+        lymph_mesh = clamp_mesh_inside_skin(lymph_mesh, skin_mesh, min_inward_depth=3.0)
     lymph_vessel_color = np.array([215, 235, 130, 225], dtype=np.uint8)
     lymph_mesh.visual.vertex_colors = np.tile(lymph_vessel_color, (len(lymph_mesh.vertices), 1))
     return lymph_mesh
@@ -788,8 +824,8 @@ def generate_subcutaneous_fat(kinematics, skin_mesh):
         dy = np.abs(Y[:, :, k] - Zc) / b_skin
         dist_se = (dx ** p + dy ** p) ** (1.0 / p)
 
-        # Mantello volumetrico solido: riempie lo spazio tra 0.83 e 0.985
-        in_mantle = np.clip((dist_se - 0.83) / 0.06, 0.0, 1.0) * np.clip((0.985 - dist_se) / 0.04, 0.0, 1.0)
+        # Mantello volumetrico solido: riempie lo spazio tra 0.83 e 0.925 (lasciando un margine dermico naturale)
+        in_mantle = np.clip((dist_se - 0.83) / 0.06, 0.0, 1.0) * np.clip((0.925 - dist_se) / 0.04, 0.0, 1.0)
 
         # Micro-lobulazioni biologiche del tessuto adiposo (lobuli di grasso compatti)
         lobules = 0.85 + 0.15 * (
@@ -797,7 +833,7 @@ def generate_subcutaneous_fat(kinematics, skin_mesh):
             np.cos(0.32 * X[:, :, k] + 0.35 * Z[:, :, k]) * np.sin(0.35 * Y[:, :, k])
         )
 
-        nipple_falloff = np.clip((0.97 - t_ratio) / 0.04, 0.0, 1.0) if t_ratio > 0.93 else 1.0
+        nipple_falloff = np.clip((0.95 - t_ratio) / 0.04, 0.0, 1.0) if t_ratio > 0.91 else 1.0
         base_fade = np.clip(t_ratio / 0.04, 0.0, 1.0)
 
         fat_grid[:, :, k] = in_mantle * lobules * nipple_falloff * base_fade
@@ -813,6 +849,7 @@ def generate_subcutaneous_fat(kinematics, skin_mesh):
     verts[:, 1] += min_b[1]
 
     fat_mesh = trimesh.Trimesh(vertices=verts, faces=faces, vertex_normals=normals)
+    fat_mesh = clamp_mesh_inside_skin(fat_mesh, skin_mesh, min_inward_depth=1.5)
     fat_color = np.array([245, 230, 165, 120], dtype=np.uint8)
     fat_mesh.visual.vertex_colors = np.tile(fat_color, (len(fat_mesh.vertices), 1))
     return fat_mesh
