@@ -22,7 +22,7 @@ from skimage.measure import marching_cubes
 # Percorsi ai moduli
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(os.path.dirname(CURRENT_DIR))
-MODULE_05_DIR = os.path.join(PROJECT_ROOT, "05_Ricostruzione_Superficie_Seno_Paper")
+MODULE_05_DIR = os.path.join(PROJECT_ROOT, "05_Breast_Surface_Module")
 MODULE_06_DIR = os.path.dirname(CURRENT_DIR)
 
 if MODULE_05_DIR not in sys.path:

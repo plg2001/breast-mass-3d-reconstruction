@@ -56,7 +56,7 @@ Il modulo combina e armonizza 5 pilastri della letteratura scientifica internazi
 
 ### Da Terminale (CLI)
 ```powershell
-python 07_Ricostruzione_Totale_Mammella_Lesione/src/total_reconstruction.py --patient_id P_00081
+python 07_Total_Reconstruction_Module/src/total_reconstruction.py --patient_id P_00081
 ```
 
 ---

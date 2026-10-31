@@ -38,10 +38,10 @@ Il modello 3D è generato in **posizione eretta anatomica** standard:
 ### 2. Esecuzione da Riga di Comando (CLI)
 ```powershell
 # Esecuzione per il paziente P_00081
-python 05_Ricostruzione_Superficie_Seno_Paper/main.py --patient_id P_00081
+python 05_Breast_Surface_Module/main.py --patient_id P_00081
 
 # Esecuzione per un altro paziente del dataset (es. P_00001, P_00005)
-python 05_Ricostruzione_Superficie_Seno_Paper/main.py --patient_id P_00001
+python 05_Breast_Surface_Module/main.py --patient_id P_00001
 ```
 
 ---

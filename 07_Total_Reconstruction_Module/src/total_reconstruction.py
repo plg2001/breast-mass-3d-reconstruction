@@ -21,9 +21,9 @@ from skimage.measure import marching_cubes
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(os.path.dirname(CURRENT_DIR))
 
-MODULE_04_DIR = os.path.join(PROJECT_ROOT, "04_Ricostruzione_Lesione_SMRD_Paper")
-MODULE_05_DIR = os.path.join(PROJECT_ROOT, "05_Ricostruzione_Superficie_Seno_Paper")
-MODULE_06_DIR = os.path.join(PROJECT_ROOT, "06_U-Net_GAN")
+MODULE_04_DIR = os.path.join(PROJECT_ROOT, "04_Spicular_Lesion_SMRD_Module")
+MODULE_05_DIR = os.path.join(PROJECT_ROOT, "05_Breast_Surface_Module")
+MODULE_06_DIR = os.path.join(PROJECT_ROOT, "06_Deep_Anatomy_AI_Module")
 
 for p in [
     MODULE_04_DIR, os.path.join(MODULE_04_DIR, "src"),

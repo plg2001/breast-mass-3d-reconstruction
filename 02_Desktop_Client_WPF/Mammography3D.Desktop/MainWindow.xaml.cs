@@ -80,7 +80,7 @@ namespace Mammography3D.Desktop
             string current = AppDomain.CurrentDomain.BaseDirectory;
             for (int i = 0; i < 6; i++)
             {
-                if (Directory.Exists(Path.Combine(current, "01_Ricostruzione_Lesione_Ling_Shao_Paper")) ||
+                if (Directory.Exists(Path.Combine(current, "01_Baseline_Lesion_LingShao")) ||
                     Directory.Exists(Path.Combine(current, "01_Ricostruzione_Lesione_3D")))
                 {
                     return current;
@@ -106,8 +106,8 @@ namespace Mammography3D.Desktop
             var dataRoots = new[]
             {
                 Path.Combine(repoRoot, "data"),
-                Path.Combine(repoRoot, "01_Ricostruzione_Lesione_Ling_Shao_Paper", "data"),
-                Path.Combine(repoRoot, "04_Ricostruzione_Lesione_SMRD_Paper", "data")
+                Path.Combine(repoRoot, "01_Baseline_Lesion_LingShao", "data"),
+                Path.Combine(repoRoot, "04_Spicular_Lesion_SMRD_Module", "data")
             };
 
             var patientsFound = new System.Collections.Generic.HashSet<string>();
@@ -288,7 +288,7 @@ namespace Mammography3D.Desktop
                 string repoRoot = FindRepoRoot();
                 string patientDataDir = Path.Combine(repoRoot, "data", pid);
                 if (!Directory.Exists(patientDataDir))
-                    patientDataDir = Path.Combine(repoRoot, "01_Ricostruzione_Lesione_Ling_Shao_Paper", "data", pid);
+                    patientDataDir = Path.Combine(repoRoot, "01_Baseline_Lesion_LingShao", "data", pid);
                 ApplySelectedLesion(pid, patientDataDir);
             }
         }
@@ -301,7 +301,7 @@ namespace Mammography3D.Desktop
             string patientDataDir = Path.Combine(repoRoot, "data", patientId);
             if (!Directory.Exists(patientDataDir))
             {
-                patientDataDir = Path.Combine(repoRoot, "01_Ricostruzione_Lesione_Ling_Shao_Paper", "data", patientId);
+                patientDataDir = Path.Combine(repoRoot, "01_Baseline_Lesion_LingShao", "data", patientId);
             }
             if (!Directory.Exists(patientDataDir))
             {
@@ -309,7 +309,7 @@ namespace Mammography3D.Desktop
             }
             if (!Directory.Exists(patientDataDir))
             {
-                patientDataDir = Path.Combine(repoRoot, "04_Ricostruzione_Lesione_SMRD_Paper", "data", patientId);
+                patientDataDir = Path.Combine(repoRoot, "04_Spicular_Lesion_SMRD_Module", "data", patientId);
             }
 
             var lesions = DiscoverLesions(patientDataDir);
@@ -360,8 +360,8 @@ namespace Mammography3D.Desktop
             string outSubDir = $"{patientId}{lesionSuffix}";
 
             string patientOutputDir = isSmrd
-                ? Path.Combine(repoRoot, "04_Ricostruzione_Lesione_SMRD_Paper", "output", outSubDir)
-                : Path.Combine(repoRoot, "01_Ricostruzione_Lesione_Ling_Shao_Paper", "output", outSubDir);
+                ? Path.Combine(repoRoot, "04_Spicular_Lesion_SMRD_Module", "output", outSubDir)
+                : Path.Combine(repoRoot, "01_Baseline_Lesion_LingShao", "output", outSubDir);
 
             if (TxtSelectedPatientBadge != null)
                 TxtSelectedPatientBadge.Text = $"output/{outSubDir} ({(isSmrd ? "SMRD" : "Ling Shao")})";

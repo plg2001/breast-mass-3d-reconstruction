@@ -27,10 +27,10 @@ namespace Mammography3D.Unity
         public string edgeServerUrl = "http://127.0.0.1:8000";
 
         [Header("Input Image Paths (StreamingAssets or PersistentDataPath)")]
-        public string rCcImagePath = "01_Ricostruzione_Lesione_Ling_Shao_Paper/data/R-CC.jpg";
-        public string rMloImagePath = "01_Ricostruzione_Lesione_Ling_Shao_Paper/data/R-MLO.jpg";
-        public string roiCcImagePath = "01_Ricostruzione_Lesione_Ling_Shao_Paper/data/ROI-R-CC.jpg";
-        public string roiMloImagePath = "01_Ricostruzione_Lesione_Ling_Shao_Paper/data/ROI-R-MLO.jpg";
+        public string rCcImagePath = "01_Baseline_Lesion_LingShao/data/R-CC.jpg";
+        public string rMloImagePath = "01_Baseline_Lesion_LingShao/data/R-MLO.jpg";
+        public string roiCcImagePath = "01_Baseline_Lesion_LingShao/data/ROI-R-CC.jpg";
+        public string roiMloImagePath = "01_Baseline_Lesion_LingShao/data/ROI-R-MLO.jpg";
 
         [Header("Reconstruction Parameters (Ling Shao 2007)")]
         [Range(15f, 75f)]

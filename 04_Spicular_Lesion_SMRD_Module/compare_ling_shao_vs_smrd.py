@@ -13,8 +13,8 @@ import matplotlib.pyplot as plt
 
 def compare_models(patient_id="P_00232"):
     repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    dir_ling_shao = os.path.join(repo_root, "01_Ricostruzione_Lesione_Ling_Shao_Paper", "output", patient_id)
-    dir_smrd = os.path.join(repo_root, "04_Ricostruzione_Lesione_SMRD_Paper", "output", patient_id)
+    dir_ling_shao = os.path.join(repo_root, "01_Baseline_Lesion_LingShao", "output", patient_id)
+    dir_smrd = os.path.join(repo_root, "04_Spicular_Lesion_SMRD_Module", "output", patient_id)
 
     path_shao = os.path.join(dir_ling_shao, "meshes", "lesion_reconstructed.obj")
     if not os.path.exists(path_shao):

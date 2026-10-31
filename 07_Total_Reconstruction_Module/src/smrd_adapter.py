@@ -16,7 +16,7 @@ from typing import Dict, Any, Tuple
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(os.path.dirname(CURRENT_DIR))
-MODULE_04_DIR = os.path.join(PROJECT_ROOT, "04_Ricostruzione_Lesione_SMRD_Paper")
+MODULE_04_DIR = os.path.join(PROJECT_ROOT, "04_Spicular_Lesion_SMRD_Module")
 
 if MODULE_04_DIR not in sys.path:
     sys.path.insert(0, MODULE_04_DIR)

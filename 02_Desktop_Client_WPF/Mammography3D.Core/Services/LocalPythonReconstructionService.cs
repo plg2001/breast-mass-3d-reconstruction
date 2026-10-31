@@ -284,10 +284,10 @@ namespace Mammography3D.Core.Services
             // 1. Check known system-wide installation locations (e.g. C:\Python314\python.exe)
             var directLocations = new[]
             {
-                @"C:\Python314\python.exe",
-                @"C:\Python313\python.exe",
-                @"C:\Python312\python.exe",
                 @"C:\Python311\python.exe",
+                @"C:\Python312\python.exe",
+                @"C:\Python310\python.exe",
+                @"C:\Python314\python.exe",
                 @"C:\Python310\python.exe",
                 @"C:\Python39\python.exe",
                 @"C:\Program Files\Python314\python.exe",
@@ -359,7 +359,7 @@ namespace Mammography3D.Core.Services
             string current = AppDomain.CurrentDomain.BaseDirectory;
             for (int i = 0; i < 6; i++)
             {
-                if (Directory.Exists(Path.Combine(current, "01_Ricostruzione_Lesione_Ling_Shao_Paper")) ||
+                if (Directory.Exists(Path.Combine(current, "01_Baseline_Lesion_LingShao")) ||
                     Directory.Exists(Path.Combine(current, "01_Ricostruzione_Lesione_3D")))
                 {
                     return current;
@@ -381,17 +381,17 @@ namespace Mammography3D.Core.Services
 
             if (algorithm == ReconstructionAlgorithm.SMRD_2015)
             {
-                string smrdCandidate = Path.Combine(repoRoot, "04_Ricostruzione_Lesione_SMRD_Paper", "smrd_lesion_reconstruction.py");
+                string smrdCandidate = Path.Combine(repoRoot, "04_Spicular_Lesion_SMRD_Module", "smrd_lesion_reconstruction.py");
                 if (File.Exists(smrdCandidate))
                     return smrdCandidate;
 
                 var smrdCandidates = new[]
                 {
-                    Path.Combine(baseDir, "..", "04_Ricostruzione_Lesione_SMRD_Paper", "smrd_lesion_reconstruction.py"),
-                    Path.Combine(baseDir, "..", "..", "04_Ricostruzione_Lesione_SMRD_Paper", "smrd_lesion_reconstruction.py"),
-                    Path.Combine(baseDir, "04_Ricostruzione_Lesione_SMRD_Paper", "smrd_lesion_reconstruction.py"),
-                    @"c:\Users\Pierluca\Desktop\breast-mass-3d-reconstruction\04_Ricostruzione_Lesione_SMRD_Paper\smrd_lesion_reconstruction.py",
-                    @"c:\Users\Pierluca\Desktop\Tesi\04_Ricostruzione_Lesione_SMRD_Paper\smrd_lesion_reconstruction.py"
+                    Path.Combine(baseDir, "..", "04_Spicular_Lesion_SMRD_Module", "smrd_lesion_reconstruction.py"),
+                    Path.Combine(baseDir, "..", "..", "04_Spicular_Lesion_SMRD_Module", "smrd_lesion_reconstruction.py"),
+                    Path.Combine(baseDir, "04_Spicular_Lesion_SMRD_Module", "smrd_lesion_reconstruction.py"),
+                    @"c:\Users\Pierluca\Desktop\breast-mass-3d-reconstruction\04_Spicular_Lesion_SMRD_Module\smrd_lesion_reconstruction.py",
+                    @"c:\Users\Pierluca\Desktop\Tesi\04_Spicular_Lesion_SMRD_Module\smrd_lesion_reconstruction.py"
                 };
 
                 foreach (var c in smrdCandidates)
@@ -400,17 +400,17 @@ namespace Mammography3D.Core.Services
                 }
             }
 
-            string candidate = Path.Combine(repoRoot, "01_Ricostruzione_Lesione_Ling_Shao_Paper", "lesion_pvc_reconstruction.py");
+            string candidate = Path.Combine(repoRoot, "01_Baseline_Lesion_LingShao", "lesion_pvc_reconstruction.py");
             if (File.Exists(candidate))
                 return candidate;
 
             var candidates = new[]
             {
-                Path.Combine(baseDir, "..", "01_Ricostruzione_Lesione_Ling_Shao_Paper", "lesion_pvc_reconstruction.py"),
-                Path.Combine(baseDir, "..", "..", "01_Ricostruzione_Lesione_Ling_Shao_Paper", "lesion_pvc_reconstruction.py"),
-                Path.Combine(baseDir, "01_Ricostruzione_Lesione_Ling_Shao_Paper", "lesion_pvc_reconstruction.py"),
-                @"c:\Users\Pierluca\Desktop\breast-mass-3d-reconstruction\01_Ricostruzione_Lesione_Ling_Shao_Paper\lesion_pvc_reconstruction.py",
-                @"c:\Users\Pierluca\Desktop\Tesi\01_Ricostruzione_Lesione_Ling_Shao_Paper\lesion_pvc_reconstruction.py",
+                Path.Combine(baseDir, "..", "01_Baseline_Lesion_LingShao", "lesion_pvc_reconstruction.py"),
+                Path.Combine(baseDir, "..", "..", "01_Baseline_Lesion_LingShao", "lesion_pvc_reconstruction.py"),
+                Path.Combine(baseDir, "01_Baseline_Lesion_LingShao", "lesion_pvc_reconstruction.py"),
+                @"c:\Users\Pierluca\Desktop\breast-mass-3d-reconstruction\01_Baseline_Lesion_LingShao\lesion_pvc_reconstruction.py",
+                @"c:\Users\Pierluca\Desktop\Tesi\01_Baseline_Lesion_LingShao\lesion_pvc_reconstruction.py",
                 // Fallback precedenti
                 Path.Combine(baseDir, "..", "01_Ricostruzione_Lesione_3D", "lesion_pvc_reconstruction.py"),
                 @"c:\Users\Pierluca\Desktop\breast-mass-3d-reconstruction\01_Ricostruzione_Lesione_3D\lesion_pvc_reconstruction.py"
@@ -425,7 +425,7 @@ namespace Mammography3D.Core.Services
                 catch { }
             }
 
-            return @"c:\Users\Pierluca\Desktop\breast-mass-3d-reconstruction\01_Ricostruzione_Lesione_Ling_Shao_Paper\lesion_pvc_reconstruction.py";
+            return @"c:\Users\Pierluca\Desktop\breast-mass-3d-reconstruction\01_Baseline_Lesion_LingShao\lesion_pvc_reconstruction.py";
         }
 
         private static ReconstructionResult ParseReport(string outputDir, double executionTime)
