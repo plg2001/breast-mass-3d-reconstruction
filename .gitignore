@@ -25,7 +25,7 @@ htmlcov/
 # ==============================================================================
 # .NET / C# / Visual Studio
 # ==============================================================================
-# Cartelle di compilazione e build artifacts
+# Cartelle di compilazione e build temporanee (Mammography3D_App di release e tracciata)
 [Bb]in/
 [Oo]bj/
 [Ll]og/
@@ -46,13 +46,9 @@ htmlcov/
 # ==============================================================================
 # File 3D, Mesh e Backup Blender
 # ==============================================================================
-*.blend
 *.blend1
 *.blend2
 *.blend@
-*.glb
-*.gltf
-*.obj
 *.mtl
 *.ply
 *.stl
@@ -63,14 +59,7 @@ htmlcov/
 # ==============================================================================
 # Dataset, Immagini e Formati Medici (DICOM / NIfTI)
 # ==============================================================================
-/data/
 CBIS-DDSM/
-*.jpg
-*.jpeg
-*.png
-*.tif
-*.tiff
-*.csv
 *.dcm
 *.dicom
 *.nii
@@ -78,13 +67,25 @@ CBIS-DDSM/
 *.mhd
 *.raw
 
-# Modelli e checkpoint Machine Learning (se utilizzati)
+# Dataset clinico locale: pusha SOLO il paziente 1 (P_00001), esclude il resto (compreso P_00081)
+data/*
+!data/P_00001/
+!data/P_00001/**
+
+# Modelli e checkpoint Machine Learning (include i pesi pre-addestrati unet3d)
 *.pt
 *.pth
+!06_Deep_Anatomy_AI_Module/training result/unet3d_generator.pth
 *.onnx
 *.h5
 *.pkl
 *.pickle
+
+# ==============================================================================
+# Paper e Documenti Scientifici (Non pushare paper PDF e documentazione letteratura)
+# ==============================================================================
+*.pdf
+03_Scientific_Literature_and_Docs/
 
 # ==============================================================================
 # Output generati dalle pipeline di ricostruzione
@@ -92,11 +93,11 @@ CBIS-DDSM/
 **/output/
 **/output_*/
 **/results/
+result/
 
 # ==============================================================================
 # Documenti e File Temporanei di Office
 # ==============================================================================
-*.pdf
 ~$*.xlsx
 ~$*.docx
 ~$*.pptx
@@ -142,7 +143,3 @@ GEMINI.md
 AGENTS.md
 .agents/
 .gemini/
-
-CBIS-DDSM
-data
-result

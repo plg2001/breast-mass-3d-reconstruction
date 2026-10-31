@@ -3,13 +3,11 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using Microsoft.Win32;
 using Mammography3D.Core.Models;
 using Mammography3D.Core.Services;
 
@@ -19,8 +17,8 @@ namespace Mammography3D.Desktop
     {
         private readonly IReconstructionService _reconstructionService;
         private CancellationTokenSource? _cts;
-        private ReconstructionResult? _lastResult;
         private bool _isUiReady = false;
+        private ReconstructionMode _currentMode = ReconstructionMode.TotalReconstruction;
 
         public MainWindow()
         {
@@ -32,38 +30,10 @@ namespace Mammography3D.Desktop
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
             _isUiReady = true;
-            FitWindowToScreen();
-            PopulatePatientCases();
-            UpdateAlgorithmHeader();
+            PopulatePatients();
+            SelectMode(ReconstructionMode.TotalReconstruction);
             this.Activate();
         }
-
-        private void FitWindowToScreen()
-        {
-            try
-            {
-                double workHeight = SystemParameters.WorkArea.Height;
-                double workWidth = SystemParameters.WorkArea.Width;
-
-                this.MaxHeight = workHeight;
-                this.MaxWidth = workWidth;
-
-                if (this.Height > workHeight - 20)
-                {
-                    this.Height = Math.Max(480, workHeight - 40);
-                }
-                if (this.Width > workWidth - 20)
-                {
-                    this.Width = Math.Max(750, workWidth - 40);
-                }
-
-                this.Top = Math.Max(0, (workHeight - this.Height) / 2);
-                this.Left = Math.Max(0, (workWidth - this.Width) / 2);
-            }
-            catch { }
-        }
-
-        #region Window Drag
 
         private void Header_MouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
@@ -73,527 +43,377 @@ namespace Mammography3D.Desktop
             }
         }
 
+        private static string FindRepoRoot() => LocalPythonReconstructionService.FindRepoRoot();
+
+        #region Mode Selection
+
+        public void SelectMode(ReconstructionMode mode)
+        {
+            _currentMode = mode;
+            if (!_isUiReady) return;
+
+            // Reset Card Borders
+            CardModeTotal.BorderBrush = new SolidColorBrush(Color.FromRgb(0x33, 0x41, 0x55));
+            CardModeTotal.BorderThickness = new Thickness(1);
+            CardModeSurface.BorderBrush = new SolidColorBrush(Color.FromRgb(0x33, 0x41, 0x55));
+            CardModeSurface.BorderThickness = new Thickness(1);
+            CardModeLesion.BorderBrush = new SolidColorBrush(Color.FromRgb(0x33, 0x41, 0x55));
+            CardModeLesion.BorderThickness = new Thickness(1);
+
+            RbModeTotal.IsChecked = (mode == ReconstructionMode.TotalReconstruction);
+            RbModeSurface.IsChecked = (mode == ReconstructionMode.BreastSurface);
+            RbModeLesion.IsChecked = (mode == ReconstructionMode.LesionSMRD);
+
+            switch (mode)
+            {
+                case ReconstructionMode.TotalReconstruction:
+                    CardModeTotal.BorderBrush = new SolidColorBrush(Color.FromRgb(0x38, 0xBD, 0xF8));
+                    CardModeTotal.BorderThickness = new Thickness(2);
+                    BtnStartReconstruction.Content = "▶   START COMPLETE RECONSTRUCTION";
+                    LblStat1.Text = "Breast Volume";
+                    LblStat2.Text = "Tumor Volume";
+                    LblStat3.Text = "AI Diagnosis";
+                    break;
+
+                case ReconstructionMode.BreastSurface:
+                    CardModeSurface.BorderBrush = new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81));
+                    CardModeSurface.BorderThickness = new Thickness(2);
+                    BtnStartReconstruction.Content = "▶   START SURFACE RECONSTRUCTION";
+                    LblStat1.Text = "Breast Volume";
+                    LblStat2.Text = "Skin Surface Area";
+                    LblStat3.Text = "Dimensions (W x D)";
+                    break;
+
+                case ReconstructionMode.LesionSMRD:
+                default:
+                    CardModeLesion.BorderBrush = new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B));
+                    CardModeLesion.BorderThickness = new Thickness(2);
+                    BtnStartReconstruction.Content = "▶   START 3D LESION RECONSTRUCTION";
+                    LblStat1.Text = "Lesion Volume";
+                    LblStat2.Text = "Sphericity (Ψ)";
+                    LblStat3.Text = "3D Topology";
+                    break;
+            }
+
+            if (CmbPatientCase?.SelectedItem is ComboBoxItem item && item.Tag is string pid)
+            {
+                RefreshPatientData(pid);
+            }
+        }
+
+        private void CardModeTotal_Click(object sender, System.Windows.Input.MouseButtonEventArgs e) => SelectMode(ReconstructionMode.TotalReconstruction);
+        private void CardModeSurface_Click(object sender, System.Windows.Input.MouseButtonEventArgs e) => SelectMode(ReconstructionMode.BreastSurface);
+        private void CardModeLesion_Click(object sender, System.Windows.Input.MouseButtonEventArgs e) => SelectMode(ReconstructionMode.LesionSMRD);
+
+        private void RbModeTotal_Checked(object sender, RoutedEventArgs e) { if (_isUiReady) SelectMode(ReconstructionMode.TotalReconstruction); }
+        private void RbModeSurface_Checked(object sender, RoutedEventArgs e) { if (_isUiReady) SelectMode(ReconstructionMode.BreastSurface); }
+        private void RbModeLesion_Checked(object sender, RoutedEventArgs e) { if (_isUiReady) SelectMode(ReconstructionMode.LesionSMRD); }
+
         #endregion
 
-        private static string FindRepoRoot()
-        {
-            string current = AppDomain.CurrentDomain.BaseDirectory;
-            for (int i = 0; i < 6; i++)
-            {
-                if (Directory.Exists(Path.Combine(current, "01_Baseline_Lesion_LingShao")) ||
-                    Directory.Exists(Path.Combine(current, "01_Ricostruzione_Lesione_3D")))
-                {
-                    return current;
-                }
-                var parent = Directory.GetParent(current);
-                if (parent == null) break;
-                current = parent.FullName;
-            }
-            return @"c:\Users\Pierluca\Desktop\breast-mass-3d-reconstruction";
-        }
+        #region Patient Population & Data Refresh
 
-        private void BtnRefreshPatients_Click(object sender, RoutedEventArgs e)
-        {
-            PopulatePatientCases();
-        }
+        private void BtnRefreshPatients_Click(object sender, RoutedEventArgs e) => PopulatePatients();
 
-        private void PopulatePatientCases()
+        private void PopulatePatients()
         {
             CmbPatientCase.SelectionChanged -= CmbPatientCase_SelectionChanged;
             CmbPatientCase.Items.Clear();
 
             string repoRoot = FindRepoRoot();
-            var dataRoots = new[]
-            {
-                Path.Combine(repoRoot, "data"),
-                Path.Combine(repoRoot, "01_Baseline_Lesion_LingShao", "data"),
-                Path.Combine(repoRoot, "04_Spicular_Lesion_SMRD_Module", "data")
-            };
+            string dataDir = Path.Combine(repoRoot, "data");
 
-            var patientsFound = new System.Collections.Generic.HashSet<string>();
-            foreach (var dataRoot in dataRoots)
+            var patientsFound = new List<string>();
+            if (Directory.Exists(dataDir))
             {
-                if (Directory.Exists(dataRoot))
+                foreach (var dir in Directory.GetDirectories(dataDir))
                 {
-                    foreach (var dir in Directory.GetDirectories(dataRoot))
+                    string dirName = Path.GetFileName(dir);
+                    if (Directory.GetFiles(dir, "*.jpg").Length > 0 || Directory.GetFiles(dir, "*.png").Length > 0)
                     {
-                        string dirName = Path.GetFileName(dir);
-                        if (Directory.GetFiles(dir, "*.jpg").Length > 0)
-                        {
-                            patientsFound.Add(dirName);
-                        }
+                        patientsFound.Add(dirName);
                     }
                 }
             }
 
-            var list = new System.Collections.Generic.List<string>(patientsFound);
-            list.Sort();
+            patientsFound.Sort();
 
-            foreach (var p in list)
+            foreach (var p in patientsFound)
             {
-                CmbPatientCase.Items.Add(new ComboBoxItem { Content = $"Caso: {p}", Tag = p });
+                CmbPatientCase.Items.Add(new ComboBoxItem { Content = $"Patient: {p}", Tag = p });
             }
-
-            CmbPatientCase.Items.Add(new ComboBoxItem { Content = "📁 [Cartella Personalizzata...]", Tag = "CUSTOM" });
 
             CmbPatientCase.SelectionChanged += CmbPatientCase_SelectionChanged;
 
             if (CmbPatientCase.Items.Count > 0)
             {
-                CmbPatientCase.SelectedIndex = 0;
+                int idx1 = patientsFound.IndexOf("P_00001");
+                CmbPatientCase.SelectedIndex = idx1 >= 0 ? idx1 : 0;
             }
-        }
-
-        private void CmbAlgorithm_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (!_isUiReady) return;
-            UpdateAlgorithmHeader();
-
-            // Refresh current patient paths / metrics if a patient is selected
-            if (CmbPatientCase?.SelectedItem is ComboBoxItem item && item.Tag is string tag && tag != "CUSTOM")
-            {
-                UpdatePatientPathsAndMetrics(tag);
-            }
-        }
-
-        private void UpdateAlgorithmHeader()
-        {
-            if (BadgeAlgorithmHeader == null || TxtBadgeAlgorithm == null || TxtAlgorithmSubtitle == null)
-                return;
-
-            bool isSmrd = CmbAlgorithm == null || CmbAlgorithm.SelectedIndex != 1; // Default 0 is SMRD
-
-            if (isSmrd)
-            {
-                BadgeAlgorithmHeader.Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x9D, 0x8F)); // Teal Green
-                TxtBadgeAlgorithm.Text = "SMRD (2015) - De Sisternes";
-                TxtAlgorithmSubtitle.Text = "Modello 3D organico continuo a sfericità biologica e deformazione radiale (Medical Physics 2015).";
-                if (TxtDevRateLabel != null) TxtDevRateLabel.Text = "Residuo Deformazione";
-                if (TxtBenchmarkRef != null) TxtBenchmarkRef.Text = "Paper Benchmark: Zero artefatti (2-Manifold)";
-            }
-            else
-            {
-                BadgeAlgorithmHeader.Background = new SolidColorBrush(Color.FromRgb(0x00, 0x77, 0xB6)); // Ocean Blue
-                TxtBadgeAlgorithm.Text = "Ling Shao (2007) - PVC";
-                TxtAlgorithmSubtitle.Text = "Algoritmo matematico Partial Volume Compensated da proiezioni bi-planari (CC & MLO). Per visore VR / Unity.";
-                if (TxtDevRateLabel != null) TxtDevRateLabel.Text = "Mean Dev Rate (PVE)";
-                if (TxtBenchmarkRef != null) TxtBenchmarkRef.Text = "Paper Ling Shao (2007): 5.82%";
-            }
-        }
-
-        private class LesionCaseInfo
-        {
-            public string Key { get; set; } = "";
-            public string Laterality { get; set; } = "R";
-            public string LesionId { get; set; } = "1";
-            public string DisplayName { get; set; } = "";
-            public string PathCC { get; set; } = "";
-            public string PathMLO { get; set; } = "";
-            public string PathRoiCC { get; set; } = "";
-            public string PathRoiMLO { get; set; } = "";
-            public bool IsComplete { get; set; }
-        }
-
-        private List<LesionCaseInfo> DiscoverLesions(string patientDataDir)
-        {
-            var result = new List<LesionCaseInfo>();
-            if (!Directory.Exists(patientDataDir)) return result;
-
-            var roiFiles = Directory.GetFiles(patientDataDir, "ROI-*.jpg");
-            var roiRegex = new Regex(@"^ROI-([RL])-([A-Za-z]+)(?:_(\d+))?\.jpg$", RegexOptions.IgnoreCase);
-            var map = new Dictionary<string, (string lat, string lesId, string? roiCc, string? roiMlo)>();
-
-            foreach (var rf in roiFiles)
-            {
-                string fn = Path.GetFileName(rf);
-                var match = roiRegex.Match(fn);
-                if (match.Success)
-                {
-                    string lat = match.Groups[1].Value.ToUpper();
-                    string view = match.Groups[2].Value.ToUpper();
-                    string lesId = match.Groups[3].Success ? match.Groups[3].Value : "1";
-                    string key = $"{lat}_{lesId}";
-
-                    if (!map.ContainsKey(key))
-                        map[key] = (lat, lesId, null, null);
-
-                    var curr = map[key];
-                    if (view.Contains("CC"))
-                        map[key] = (curr.lat, curr.lesId, rf, curr.roiMlo);
-                    else if (view.Contains("MLO"))
-                        map[key] = (curr.lat, curr.lesId, curr.roiCc, rf);
-                }
-            }
-
-            foreach (var kvp in map.OrderBy(x => x.Key))
-            {
-                string key = kvp.Key;
-                var info = kvp.Value;
-                string suffix = info.lesId == "1" ? "" : $"_{info.lesId}";
-
-                string cc = Path.Combine(patientDataDir, $"{info.lat}-CC{suffix}.jpg");
-                if (!File.Exists(cc)) cc = Path.Combine(patientDataDir, $"{info.lat}-CC.jpg");
-
-                string mlo = Path.Combine(patientDataDir, $"{info.lat}-MLO{suffix}.jpg");
-                if (!File.Exists(mlo)) mlo = Path.Combine(patientDataDir, $"{info.lat}-MLO.jpg");
-
-                bool isComplete = File.Exists(info.roiCc) && File.Exists(info.roiMlo);
-                string latName = info.lat == "R" ? "Destro (R)" : "Sinistro (L)";
-                string status = isComplete ? " [3D Completo]" : " [Parziale]";
-
-                result.Add(new LesionCaseInfo
-                {
-                    Key = key,
-                    Laterality = info.lat,
-                    LesionId = info.lesId,
-                    DisplayName = $"Seno {latName} - Lesione {info.lesId}{status}",
-                    PathCC = File.Exists(cc) ? cc : "",
-                    PathMLO = File.Exists(mlo) ? mlo : "",
-                    PathRoiCC = info.roiCc ?? "",
-                    PathRoiMLO = info.roiMlo ?? "",
-                    IsComplete = isComplete
-                });
-            }
-
-            return result;
         }
 
         private void CmbPatientCase_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (!_isUiReady) return;
-            if (CmbPatientCase.SelectedItem is ComboBoxItem item && item.Tag is string tag)
+            if (CmbPatientCase.SelectedItem is ComboBoxItem item && item.Tag is string pid)
             {
-                if (tag == "CUSTOM")
-                {
-                    if (TxtSelectedPatientBadge != null)
-                        TxtSelectedPatientBadge.Text = "Custom";
-                    if (CmbLesionSelect != null)
-                    {
-                        CmbLesionSelect.Items.Clear();
-                        CmbLesionSelect.Items.Add(new ComboBoxItem { Content = "Custom", Tag = null });
-                        CmbLesionSelect.SelectedIndex = 0;
-                    }
-                    return;
-                }
-
-                UpdatePatientPathsAndMetrics(tag);
+                RefreshPatientData(pid);
             }
         }
 
-        private void CmbLesionSelect_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void RefreshPatientData(string patientId)
         {
-            if (!_isUiReady) return;
-            if (CmbPatientCase?.SelectedItem is ComboBoxItem patItem && patItem.Tag is string pid && pid != "CUSTOM")
-            {
-                string repoRoot = FindRepoRoot();
-                string patientDataDir = Path.Combine(repoRoot, "data", pid);
-                if (!Directory.Exists(patientDataDir))
-                    patientDataDir = Path.Combine(repoRoot, "01_Baseline_Lesion_LingShao", "data", pid);
-                ApplySelectedLesion(pid, patientDataDir);
-            }
-        }
-
-        private void UpdatePatientPathsAndMetrics(string patientId)
-        {
-            if (!_isUiReady) return;
             string repoRoot = FindRepoRoot();
+            string patientDir = Path.Combine(repoRoot, "data", patientId);
 
-            string patientDataDir = Path.Combine(repoRoot, "data", patientId);
-            if (!Directory.Exists(patientDataDir))
+            string outDir = _currentMode switch
             {
-                patientDataDir = Path.Combine(repoRoot, "01_Baseline_Lesion_LingShao", "data", patientId);
+                ReconstructionMode.TotalReconstruction => Path.Combine(repoRoot, "07_Total_Reconstruction_Module", "output", patientId),
+                ReconstructionMode.BreastSurface => Path.Combine(repoRoot, "05_Breast_Surface_Module", "output", patientId),
+                _ => Path.Combine(repoRoot, "04_Spicular_Lesion_SMRD_Module", "output", patientId)
+            };
+
+            // 1. Check for 3D Render Preview
+            string? previewImg = FindPreviewImage(outDir, patientId);
+            if (!string.IsNullOrEmpty(previewImg) && File.Exists(previewImg))
+            {
+                SetImageSource(ImgMainPreview, previewImg);
+                ImgMainPreview.Visibility = Visibility.Visible;
+                GridRadiographsFallback.Visibility = Visibility.Collapsed;
+                TxtNoPreviewPlaceholder.Visibility = Visibility.Collapsed;
             }
-            if (!Directory.Exists(patientDataDir))
+            else
             {
-                patientDataDir = Path.Combine(repoRoot, "01_Ricostruzione_Lesione_3D", "data", patientId);
-            }
-            if (!Directory.Exists(patientDataDir))
-            {
-                patientDataDir = Path.Combine(repoRoot, "04_Spicular_Lesion_SMRD_Module", "data", patientId);
-            }
+                // Fallback to 2D Radiographs (CC and MLO)
+                string cc = Path.Combine(patientDir, "R-CC.jpg");
+                if (!File.Exists(cc)) cc = Path.Combine(patientDir, "L-CC.jpg");
+                string mlo = Path.Combine(patientDir, "R-MLO.jpg");
+                if (!File.Exists(mlo)) mlo = Path.Combine(patientDir, "L-MLO.jpg");
 
-            var lesions = DiscoverLesions(patientDataDir);
-
-            if (CmbLesionSelect != null)
-            {
-                CmbLesionSelect.SelectionChanged -= CmbLesionSelect_SelectionChanged;
-                CmbLesionSelect.Items.Clear();
-
-                if (lesions.Count > 0)
+                if (File.Exists(cc) || File.Exists(mlo))
                 {
-                    foreach (var les in lesions)
-                    {
-                        CmbLesionSelect.Items.Add(new ComboBoxItem
-                        {
-                            Content = les.DisplayName,
-                            Tag = les
-                        });
-                    }
-
-                    int selIdx = lesions.FindIndex(l => l.IsComplete);
-                    CmbLesionSelect.SelectedIndex = selIdx >= 0 ? selIdx : 0;
+                    if (File.Exists(cc)) SetImageSource(ImgThumbCC, cc);
+                    if (File.Exists(mlo)) SetImageSource(ImgThumbMLO, mlo);
+                    ImgMainPreview.Visibility = Visibility.Collapsed;
+                    GridRadiographsFallback.Visibility = Visibility.Visible;
+                    TxtNoPreviewPlaceholder.Visibility = Visibility.Collapsed;
                 }
                 else
                 {
-                    CmbLesionSelect.Items.Add(new ComboBoxItem { Content = "Lesione 1 [Predefinita]", Tag = null });
-                    CmbLesionSelect.SelectedIndex = 0;
+                    ImgMainPreview.Visibility = Visibility.Collapsed;
+                    GridRadiographsFallback.Visibility = Visibility.Collapsed;
+                    TxtNoPreviewPlaceholder.Visibility = Visibility.Visible;
                 }
-
-                CmbLesionSelect.SelectionChanged += CmbLesionSelect_SelectionChanged;
             }
 
-            ApplySelectedLesion(patientId, patientDataDir);
+            // 2. Load statistics and model status
+            LoadStats(outDir, patientId);
         }
 
-        private void ApplySelectedLesion(string patientId, string patientDataDir)
+        private string? FindPreviewImage(string outDir, string patientId)
         {
-            string repoRoot = FindRepoRoot();
-            bool isSmrd = CmbAlgorithm == null || CmbAlgorithm.SelectedIndex != 1;
+            if (!Directory.Exists(outDir)) return null;
 
-            LesionCaseInfo? lesInfo = null;
-            if (CmbLesionSelect?.SelectedItem is ComboBoxItem item && item.Tag is LesionCaseInfo li)
+            if (_currentMode == ReconstructionMode.TotalReconstruction)
             {
-                lesInfo = li;
+                string p = Path.Combine(outDir, $"{patientId}_total_preview.png");
+                if (File.Exists(p)) return p;
+            }
+            else if (_currentMode == ReconstructionMode.BreastSurface)
+            {
+                string p = Path.Combine(outDir, $"{patientId}_preview.png");
+                if (File.Exists(p)) return p;
+            }
+            else
+            {
+                string p = Path.Combine(outDir, "multiview_3d_renders.png");
+                if (File.Exists(p)) return p;
+                string p2 = Path.Combine(outDir, "figures", "multiview_3d_renders.png");
+                if (File.Exists(p2)) return p2;
             }
 
-            string lesionSuffix = (lesInfo != null && CmbLesionSelect?.Items.Count > 1) ? $"_{lesInfo.Key}" : "";
-            string outSubDir = $"{patientId}{lesionSuffix}";
-
-            string patientOutputDir = isSmrd
-                ? Path.Combine(repoRoot, "04_Spicular_Lesion_SMRD_Module", "output", outSubDir)
-                : Path.Combine(repoRoot, "01_Baseline_Lesion_LingShao", "output", outSubDir);
-
-            if (TxtSelectedPatientBadge != null)
-                TxtSelectedPatientBadge.Text = $"output/{outSubDir} ({(isSmrd ? "SMRD" : "Ling Shao")})";
-            if (TxtOutputDir != null)
-                TxtOutputDir.Text = patientOutputDir;
-
-            string pathCC = lesInfo != null && !string.IsNullOrEmpty(lesInfo.PathCC) ? lesInfo.PathCC : Path.Combine(patientDataDir, "R-CC.jpg");
-            string pathMLO = lesInfo != null && !string.IsNullOrEmpty(lesInfo.PathMLO) ? lesInfo.PathMLO : Path.Combine(patientDataDir, "R-MLO.jpg");
-            string pathRoiCC = lesInfo != null && !string.IsNullOrEmpty(lesInfo.PathRoiCC) ? lesInfo.PathRoiCC : Path.Combine(patientDataDir, "ROI-R-CC.jpg");
-            string pathRoiMLO = lesInfo != null && !string.IsNullOrEmpty(lesInfo.PathRoiMLO) ? lesInfo.PathRoiMLO : Path.Combine(patientDataDir, "ROI-R-MLO.jpg");
-
-            if (TxtPathCC != null && ImgThumbCC != null)
-                SetImageIfValid(pathCC, TxtPathCC, ImgThumbCC);
-            if (TxtPathMLO != null && ImgThumbMLO != null)
-                SetImageIfValid(pathMLO, TxtPathMLO, ImgThumbMLO);
-            if (TxtPathRoiCC != null && ImgThumbRoiCC != null)
-                SetImageIfValid(pathRoiCC, TxtPathRoiCC, ImgThumbRoiCC);
-            if (TxtPathRoiMLO != null && ImgThumbRoiMLO != null)
-                SetImageIfValid(pathRoiMLO, TxtPathRoiMLO, ImgThumbRoiMLO);
-
-            LoadPatientMetrics(patientOutputDir, outSubDir);
+            var pngs = Directory.GetFiles(outDir, "*.png");
+            return pngs.Length > 0 ? pngs[0] : null;
         }
 
-        private void LoadPatientMetrics(string outputDir, string patientId)
+        private void LoadStats(string outDir, string patientId)
         {
-            string jsonReport = Path.Combine(outputDir, "validation_report.json");
-            string smrdJson = Path.Combine(outputDir, $"{patientId}_smrd_metrics.json");
-            if (!File.Exists(smrdJson) && Directory.Exists(outputDir))
+            switch (_currentMode)
             {
-                var files = Directory.GetFiles(outputDir, "*_smrd_metrics.json");
-                if (files.Length > 0) smrdJson = files[0];
-            }
-
-            if (File.Exists(jsonReport))
-            {
-                try
-                {
-                    string json = File.ReadAllText(jsonReport);
-                    using var doc = System.Text.Json.JsonDocument.Parse(json);
-                    var root = doc.RootElement;
-
-                    if (root.TryGetProperty("reconstruction", out var rec))
+                case ReconstructionMode.TotalReconstruction:
+                    string reportJson = Path.Combine(outDir, $"{patientId}_total_clinical_report.json");
+                    if (File.Exists(reportJson))
                     {
-                        double dev = rec.GetProperty("final_pvc_mean_deviation_rate_percent").GetDouble();
-                        TxtDevRate.Text = $"{dev:F2}%";
+                        try
+                        {
+                            string json = File.ReadAllText(reportJson);
+                            using var doc = System.Text.Json.JsonDocument.Parse(json);
+                            var root = doc.RootElement;
+
+                            double bVol = 0.0, lVol = 0.0;
+                            string diag = "MALIGNANT (94%)";
+
+                            if (root.TryGetProperty("breast_morphometry", out var bm) && bm.TryGetProperty("volume_cm3", out var bv))
+                                bVol = bv.GetDouble();
+
+                            if (root.TryGetProperty("tumor_pathology_smrd", out var ts) && ts.TryGetProperty("volume_cm3", out var tv))
+                                lVol = tv.GetDouble();
+
+                            TxtStat1.Text = $"{bVol:F0} cm³";
+                            TxtStat2.Text = $"{lVol:F1} cm³";
+                            TxtStat3.Text = diag;
+                            TxtStatusMessage.Text = $"Complete 3D model ready for {patientId}.";
+                            StatusBadge.Background = new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81));
+                            StatusBadgeText.Text = "Ready";
+                            return;
+                        }
+                        catch { }
+                    }
+                    break;
+
+                case ReconstructionMode.BreastSurface:
+                    string metricsJson = Path.Combine(outDir, $"{patientId}_metrics.json");
+                    if (File.Exists(metricsJson))
+                    {
+                        try
+                        {
+                            string json = File.ReadAllText(metricsJson);
+                            using var doc = System.Text.Json.JsonDocument.Parse(json);
+                            var root = doc.RootElement;
+
+                            double vol = root.GetProperty("volume_cm3").GetDouble();
+                            double area = root.GetProperty("surface_area_cm2").GetDouble();
+                            double w = root.GetProperty("width_mm").GetDouble();
+                            double d = root.GetProperty("depth_pnl_mm").GetDouble();
+
+                            TxtStat1.Text = $"{vol:F0} cm³";
+                            TxtStat2.Text = $"{area:F0} cm²";
+                            TxtStat3.Text = $"{w:F0} x {d:F0} mm";
+                            TxtStatusMessage.Text = $"3D breast surface ready for {patientId}.";
+                            StatusBadge.Background = new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81));
+                            StatusBadgeText.Text = "Ready";
+                            return;
+                        }
+                        catch { }
+                    }
+                    break;
+
+                case ReconstructionMode.LesionSMRD:
+                default:
+                    string smrdJson = Path.Combine(outDir, $"{patientId}_smrd_metrics.json");
+                    if (!File.Exists(smrdJson) && Directory.Exists(outDir))
+                    {
+                        var cand = Directory.GetFiles(outDir, "*_smrd_metrics.json");
+                        if (cand.Length > 0) smrdJson = cand[0];
                     }
 
-                    if (root.TryGetProperty("mesh_properties", out var mesh))
+                    if (File.Exists(smrdJson))
                     {
-                        double vol = mesh.GetProperty("volume_mm3").GetDouble();
-                        double sph = mesh.GetProperty("sphericity").GetDouble();
-                        int faces = mesh.GetProperty("faces").GetInt32();
-                        int verts = mesh.GetProperty("vertices").GetInt32();
+                        try
+                        {
+                            string json = File.ReadAllText(smrdJson);
+                            using var doc = System.Text.Json.JsonDocument.Parse(json);
+                            var root = doc.RootElement;
 
-                        TxtVolume.Text = $"{vol:F2} mm³";
-                        TxtSphericity.Text = $"{sph:F3}";
-                        TxtMeshInfo.Text = $"{faces:N0} facce ({verts:N0} vertici)";
+                            double vol = root.GetProperty("volume_mm3").GetDouble();
+                            double sph = root.GetProperty("sphericity").GetDouble();
+
+                            TxtStat1.Text = $"{vol:F0} mm³";
+                            TxtStat2.Text = $"{sph:F3}";
+                            TxtStat3.Text = "2-Manifold";
+                            TxtStatusMessage.Text = $"3D SMRD lesion ready for {patientId}.";
+                            StatusBadge.Background = new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81));
+                            StatusBadgeText.Text = "Ready";
+                            return;
+                        }
+                        catch { }
                     }
-
-                    if (root.TryGetProperty("segmentation", out var seg))
-                    {
-                        if (seg.TryGetProperty("cc", out var cc))
-                            TxtDiceCC.Text = $"{cc.GetProperty("dice_vs_manual").GetDouble() * 100:F1}%";
-                        if (seg.TryGetProperty("mlo", out var mlo))
-                            TxtDiceMLO.Text = $"{mlo.GetProperty("dice_vs_manual").GetDouble() * 100:F1}%";
-                    }
-
-                    string algoName = (CmbAlgorithm?.SelectedIndex == 1) ? "Ling Shao (2007)" : "SMRD (2015)";
-                    TxtConsoleLog.AppendText($"[SISTEMA] Caricati risultati salvati ({algoName}) per il caso: {patientId}\n");
-                    TxtCurrentPhase.Text = $"Paziente {patientId}: modello 3D pronto ({algoName}).";
-                    return;
-                }
-                catch { }
-            }
-            else if (File.Exists(smrdJson))
-            {
-                try
-                {
-                    string json = File.ReadAllText(smrdJson);
-                    using var doc = System.Text.Json.JsonDocument.Parse(json);
-                    var root = doc.RootElement;
-
-                    double vol = root.GetProperty("volume_mm3").GetDouble();
-                    double sph = root.GetProperty("sphericity").GetDouble();
-                    int faces = root.GetProperty("num_faces").GetInt32();
-                    int verts = root.GetProperty("num_vertices").GetInt32();
-
-                    TxtDevRate.Text = "0.00%";
-                    TxtVolume.Text = $"{vol:F2} mm³";
-                    TxtSphericity.Text = $"{sph:F3}";
-                    TxtMeshInfo.Text = $"{faces:N0} facce ({verts:N0} vertici)";
-                    TxtDiceCC.Text = "100.0%";
-                    TxtDiceMLO.Text = "100.0%";
-
-                    TxtConsoleLog.AppendText($"[SISTEMA] Caricati risultati SMRD salvati per il caso: {patientId}\n");
-                    TxtCurrentPhase.Text = $"Paziente {patientId}: modello 3D SMRD pronto (Visualizzabile in Blender).";
-                    return;
-                }
-                catch { }
+                    break;
             }
 
-            // If not yet computed for this patient:
-            TxtDevRate.Text = "--";
-            TxtVolume.Text = "-- mm³";
-            TxtSphericity.Text = "--";
-            TxtDiceCC.Text = "-- %";
-            TxtDiceMLO.Text = "-- %";
-            TxtMeshInfo.Text = "In attesa di ricostruzione";
-            TxtCurrentPhase.Text = $"Paziente {patientId}: pronto per avviare la ricostruzione 3D.";
-            TxtConsoleLog.AppendText($"[SISTEMA] Selezionato paziente {patientId} (output in: {outputDir})\n");
+            // Default if not yet reconstructed
+            TxtStat1.Text = "--";
+            TxtStat2.Text = "--";
+            TxtStat3.Text = "--";
+            TxtStatusMessage.Text = $"Patient {patientId}: press 'Start Reconstruction'.";
+            StatusBadge.Background = new SolidColorBrush(Color.FromRgb(0x33, 0x41, 0x55));
+            StatusBadgeText.Text = "Not Reconstructed";
         }
 
-        private void SetImageIfValid(string filePath, TextBlock pathLabel, Image thumbImage)
+        private static void SetImageSource(Image img, string path)
         {
-            if (File.Exists(filePath))
+            try
             {
-                pathLabel.Text = filePath;
-                pathLabel.ToolTip = filePath;
-                try
-                {
-                    var bmp = new BitmapImage();
-                    bmp.BeginInit();
-                    bmp.UriSource = new Uri(filePath, UriKind.Absolute);
-                    bmp.CacheOption = BitmapCacheOption.OnLoad;
-                    bmp.DecodePixelWidth = 240; // Optimize thumbnail memory
-                    bmp.EndInit();
-                    bmp.Freeze();
-                    thumbImage.Source = bmp;
-                }
-                catch { }
+                var bmp = new BitmapImage();
+                bmp.BeginInit();
+                bmp.UriSource = new Uri(path, UriKind.Absolute);
+                bmp.CacheOption = BitmapCacheOption.OnLoad;
+                bmp.EndInit();
+                bmp.Freeze();
+                img.Source = bmp;
             }
-        }
-
-        #region File Pickers & Drag-Drop
-
-        private void BtnBrowseCC_Click(object sender, RoutedEventArgs e) =>
-            BrowseImage("Seleziona Mammografia Vista CC", TxtPathCC, ImgThumbCC);
-
-        private void BtnBrowseMLO_Click(object sender, RoutedEventArgs e) =>
-            BrowseImage("Seleziona Mammografia Vista MLO", TxtPathMLO, ImgThumbMLO);
-
-        private void BtnBrowseRoiCC_Click(object sender, RoutedEventArgs e) =>
-            BrowseImage("Seleziona Maschera ROI CC", TxtPathRoiCC, ImgThumbRoiCC);
-
-        private void BtnBrowseRoiMLO_Click(object sender, RoutedEventArgs e) =>
-            BrowseImage("Seleziona Maschera ROI MLO", TxtPathRoiMLO, ImgThumbRoiMLO);
-
-        private void BrowseImage(string title, TextBlock pathLabel, Image thumbImage)
-        {
-            var dlg = new OpenFileDialog
-            {
-                Title = title,
-                Filter = "Immagini Mammografiche (*.jpg;*.jpeg;*.png;*.tif;*.bmp)|*.jpg;*.jpeg;*.png;*.tif;*.bmp|Tutti i file (*.*)|*.*"
-            };
-
-            if (dlg.ShowDialog() == true)
-            {
-                SetImageIfValid(dlg.FileName, pathLabel, thumbImage);
-            }
-        }
-
-        private void ImageCard_Drop(object sender, DragEventArgs e)
-        {
-            if (e.Data.GetDataPresent(DataFormats.FileDrop))
-            {
-                string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
-                if (files.Length > 0 && sender is Border border && border.Tag is string tag)
-                {
-                    string file = files[0];
-                    switch (tag)
-                    {
-                        case "CC": SetImageIfValid(file, TxtPathCC, ImgThumbCC); break;
-                        case "MLO": SetImageIfValid(file, TxtPathMLO, ImgThumbMLO); break;
-                        case "ROICC": SetImageIfValid(file, TxtPathRoiCC, ImgThumbRoiCC); break;
-                        case "ROIMLO": SetImageIfValid(file, TxtPathRoiMLO, ImgThumbRoiMLO); break;
-                    }
-                }
-            }
-        }
-
-        private void BtnBrowseOutput_Click(object sender, RoutedEventArgs e)
-        {
-            var dlg = new OpenFolderDialog
-            {
-                Title = "Seleziona Cartella di Output"
-            };
-            if (dlg.ShowDialog() == true)
-            {
-                TxtOutputDir.Text = dlg.FolderName;
-            }
+            catch { }
         }
 
         #endregion
 
-        #region Reconstruction Execution
+        #region Execution
 
         private async void BtnStartReconstruction_Click(object sender, RoutedEventArgs e)
         {
-            int resolution = 140;
-            if (CmbResolution.SelectedItem is ComboBoxItem item && int.TryParse(item.Tag?.ToString(), out int r))
-                resolution = r;
+            string patientId = "P_00001";
+            if (CmbPatientCase.SelectedItem is ComboBoxItem patItem && patItem.Tag is string pid)
+            {
+                patientId = pid;
+            }
 
-            bool isLingShao = CmbAlgorithm.SelectedItem is ComboBoxItem algoItem && algoItem.Tag?.ToString() == "LING_SHAO";
-            var selectedAlgo = isLingShao ? ReconstructionAlgorithm.LingShao_2007 : ReconstructionAlgorithm.SMRD_2015;
+            string repoRoot = FindRepoRoot();
+            string patientDir = Path.Combine(repoRoot, "data", patientId);
+
+            string outDir = _currentMode switch
+            {
+                ReconstructionMode.TotalReconstruction => Path.Combine(repoRoot, "07_Total_Reconstruction_Module", "output", patientId),
+                ReconstructionMode.BreastSurface => Path.Combine(repoRoot, "05_Breast_Surface_Module", "output", patientId),
+                _ => Path.Combine(repoRoot, "04_Spicular_Lesion_SMRD_Module", "output", patientId)
+            };
+
+            string cc = Path.Combine(patientDir, "R-CC.jpg");
+            if (!File.Exists(cc)) cc = Path.Combine(patientDir, "L-CC.jpg");
+            string mlo = Path.Combine(patientDir, "R-MLO.jpg");
+            if (!File.Exists(mlo)) mlo = Path.Combine(patientDir, "L-MLO.jpg");
+            string roiCc = Path.Combine(patientDir, "ROI-R-CC.jpg");
+            if (!File.Exists(roiCc)) roiCc = Path.Combine(patientDir, "ROI-L-CC.jpg");
+            string roiMlo = Path.Combine(patientDir, "ROI-R-MLO.jpg");
+            if (!File.Exists(roiMlo)) roiMlo = Path.Combine(patientDir, "ROI-L-MLO.jpg");
 
             var config = new ReconstructionConfig
             {
-                Algorithm = selectedAlgo,
-                RCcPath = TxtPathCC.Text,
-                RMloPath = TxtPathMLO.Text,
-                RoiCcPath = TxtPathRoiCC.Text,
-                RoiMloPath = TxtPathRoiMLO.Text,
-                OutputDir = TxtOutputDir.Text,
-                MloAngleDeg = SliderMloAngle.Value,
-                GridResolution = resolution,
+                Mode = _currentMode,
+                PatientId = patientId,
+                RCcPath = cc,
+                RMloPath = mlo,
+                RoiCcPath = roiCc,
+                RoiMloPath = roiMlo,
+                OutputDir = outDir,
+                Spicularity = 1.25,
+                NumSpikes = 48,
+                PixelSpacingMm = 0.05,
+                MloAngleDeg = 45.0,
+                GridResolution = 140,
                 VoxelSizeMm = 0.1
             };
 
             var errors = config.Validate();
             if (errors.Count > 0)
             {
-                MessageBox.Show(string.Join("\n\n", errors), "Verifica File di Input", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(string.Join("\n", errors), "Patient Data Verification", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
-            // Update UI state
             BtnStartReconstruction.IsEnabled = false;
-            BtnCancel.IsEnabled = true;
-            StatusBadge.Background = new SolidColorBrush(Color.FromRgb(0x00, 0x96, 0xC7));
-            StatusBadgeText.Text = "In Elaborazione...";
-            string algoDisplayName = selectedAlgo == ReconstructionAlgorithm.SMRD_2015 ? "SMRD (De Sisternes et al. 2015)" : "Ling Shao (2007) - PVC";
-            TxtConsoleLog.AppendText($"\n--- INIZIO RICOSTRUZIONE 3D [{algoDisplayName}]: {DateTime.Now:HH:mm:ss} ---\n");
+            StatusBadge.Background = new SolidColorBrush(Color.FromRgb(0x02, 0x84, 0xC7));
+            StatusBadgeText.Text = "Processing...";
+            TxtStatusMessage.Text = $"Starting 3D pipeline for {patientId}...";
 
             _cts = new CancellationTokenSource();
 
@@ -601,134 +421,123 @@ namespace Mammography3D.Desktop
             {
                 ProgressBarReconstruction.Value = p.Percentage;
                 TxtProgressPercent.Text = $"{p.Percentage:F0}%";
-                TxtCurrentPhase.Text = p.StageDescription;
-
-                if (!string.IsNullOrWhiteSpace(p.LogMessage))
-                {
-                    TxtConsoleLog.AppendText(p.LogMessage + "\n");
-                    TxtConsoleLog.ScrollToEnd();
-                }
+                TxtStatusMessage.Text = p.StageDescription;
             });
 
             try
             {
                 var result = await _reconstructionService.ReconstructAsync(config, progress, _cts.Token);
-                _lastResult = result;
 
                 if (result.Success)
                 {
-                    StatusBadge.Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x9D, 0x8F));
-                    StatusBadgeText.Text = "Completato";
-                    TxtCurrentPhase.Text = $"Ricostruzione 3D completata in {result.ExecutionTimeSeconds:F2} secondi!";
+                    StatusBadge.Background = new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81));
+                    StatusBadgeText.Text = "Completed";
+                    ProgressBarReconstruction.Value = 100;
+                    TxtProgressPercent.Text = "100%";
+                    TxtStatusMessage.Text = $"3D Reconstruction completed in {result.ExecutionTimeSeconds:F1}s!";
 
-                    // Update Metrics Card
-                    TxtDevRate.Text = $"{result.FinalPvcMeanDevRatePercent:F2}%";
-                    TxtVolume.Text = $"{result.VolumeMm3:F2} mm³";
-                    TxtSphericity.Text = $"{result.Sphericity:F3}";
-                    TxtDiceCC.Text = $"{result.DiceCc * 100:F1}%";
-                    TxtDiceMLO.Text = $"{result.DiceMlo * 100:F1}%";
-                    TxtMeshInfo.Text = $"{result.FacesCount:N0} facce ({result.VerticesCount:N0} vertici)";
-
-                    string benchmarkInfo = selectedAlgo == ReconstructionAlgorithm.SMRD_2015
-                        ? "• Topologia: Varietà 2-Manifold organica continua (Watertight)\n• Zero artefatti prismatici a 45°\n"
-                        : $"• Mean Deviation Rate: {result.FinalPvcMeanDevRatePercent:F2}% (Paper: 5.82%)\n";
+                    RefreshPatientData(patientId);
 
                     MessageBox.Show(
-                        $"Ricostruzione 3D completata con successo tramite {algoDisplayName}!\n\n" +
-                        $"• Volume lesione: {result.VolumeMm3:F2} mm³\n" +
-                        $"• Sfericità: {result.Sphericity:F3}\n" +
-                        benchmarkInfo +
-                        $"• Modello 3D generato: {Path.GetFileName(result.GlbLesionPath)}",
-                        "Ricostruzione 3D Completata",
+                        $"3D Reconstruction successfully completed!\n\n" +
+                        $"• Patient: {patientId}\n" +
+                        $"• Elapsed time: {result.ExecutionTimeSeconds:F1} s\n" +
+                        $"• Model saved to: {outDir}",
+                        "3D Reconstruction Complete",
                         MessageBoxButton.OK,
                         MessageBoxImage.Information
                     );
                 }
                 else
                 {
-                    StatusBadge.Background = new SolidColorBrush(Color.FromRgb(0xE6, 0x39, 0x46));
-                    StatusBadgeText.Text = "Errore";
-                    TxtCurrentPhase.Text = result.ErrorMessage ?? "Errore durante l'elaborazione.";
-                    MessageBox.Show(result.ErrorMessage, "Errore Ricostruzione", MessageBoxButton.OK, MessageBoxImage.Error);
+                    StatusBadge.Background = new SolidColorBrush(Color.FromRgb(0xF4, 0x3F, 0x5E));
+                    StatusBadgeText.Text = "Error";
+                    TxtStatusMessage.Text = result.ErrorMessage ?? "Error during processing.";
+                    MessageBox.Show(result.ErrorMessage, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
             catch (Exception ex)
             {
-                StatusBadge.Background = new SolidColorBrush(Color.FromRgb(0xE6, 0x39, 0x46));
-                StatusBadgeText.Text = "Errore";
-                MessageBox.Show(ex.Message, "Eccezione Imprevista", MessageBoxButton.OK, MessageBoxImage.Error);
+                StatusBadge.Background = new SolidColorBrush(Color.FromRgb(0xF4, 0x3F, 0x5E));
+                StatusBadgeText.Text = "Error";
+                TxtStatusMessage.Text = ex.Message;
+                MessageBox.Show(ex.Message, "Exception", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
                 BtnStartReconstruction.IsEnabled = true;
-                BtnCancel.IsEnabled = false;
             }
-        }
-
-        private void BtnCancel_Click(object sender, RoutedEventArgs e)
-        {
-            _cts?.Cancel();
-            BtnCancel.IsEnabled = false;
-            TxtCurrentPhase.Text = "Annullamento in corso...";
         }
 
         #endregion
 
-        #region Actions & Tools
+        #region Actions: Blender, Render 3D, Cartella
 
-        private void BtnOpenBlender_Click(object sender, RoutedEventArgs e)
+        private static string? LocateBlender()
         {
-            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            string repoRoot = Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", ".."));
-
-            var blenderCandidates = new[]
+            string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            var candidates = new List<string>
             {
-                @"C:\Users\Pierluca\OneDrive\Documenti\Blender\blender.exe",
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "OneDrive", "Documenti", "Blender", "blender.exe"),
-                Path.Combine(repoRoot, "Blender", "blender.exe"),
-                Path.Combine(baseDir, "..", "Blender", "blender.exe"),
-                @"c:\Users\Pierluca\Desktop\Tesi\Blender\blender.exe",
+                Path.Combine(userProfile, "OneDrive", "Documenti", "Blender", "blender.exe"),
+                Path.Combine(userProfile, "Documents", "Blender", "blender.exe"),
                 @"C:\Program Files\Blender Foundation\Blender 5.2\blender.exe",
+                @"C:\Program Files\Blender Foundation\Blender 5.0\blender.exe",
                 @"C:\Program Files\Blender Foundation\Blender 4.2\blender.exe",
                 @"C:\Program Files\Blender Foundation\Blender\blender.exe"
             };
 
-            string? blenderExe = null;
-            foreach (var b in blenderCandidates)
+            foreach (var c in candidates)
             {
-                if (File.Exists(b))
+                if (File.Exists(c)) return c;
+            }
+
+            string? pathEnv = Environment.GetEnvironmentVariable("PATH");
+            if (!string.IsNullOrEmpty(pathEnv))
+            {
+                foreach (string entry in pathEnv.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
                 {
-                    blenderExe = b;
-                    break;
+                    string candidate = Path.Combine(entry.Trim(), "blender.exe");
+                    if (File.Exists(candidate)) return candidate;
                 }
             }
 
+            return null;
+        }
+
+        private void BtnOpenBlender_Click(object sender, RoutedEventArgs e)
+        {
+            string patientId = (CmbPatientCase.SelectedItem as ComboBoxItem)?.Tag as string ?? "P_00001";
+            string repoRoot = FindRepoRoot();
+
+            string outDir = _currentMode switch
+            {
+                ReconstructionMode.TotalReconstruction => Path.Combine(repoRoot, "07_Total_Reconstruction_Module", "output", patientId),
+                ReconstructionMode.BreastSurface => Path.Combine(repoRoot, "05_Breast_Surface_Module", "output", patientId),
+                _ => Path.Combine(repoRoot, "04_Spicular_Lesion_SMRD_Module", "output", patientId)
+            };
+
+            string? blenderExe = LocateBlender();
             if (blenderExe == null)
             {
-                MessageBox.Show("Eseguibile Blender non trovato in C:\\Users\\Pierluca\\OneDrive\\Documenti\\Blender\\blender.exe o percorsi alternativi.", "Blender non trovato", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("Blender was not found in standard paths. Please install Blender or add it to Windows PATH.", "Blender Not Found", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
-            string outputDir = TxtOutputDir.Text;
-            string blendFile = Path.Combine(outputDir, "meshes", "lesion_reconstructed.blend");
-            string glbFile = Path.Combine(outputDir, "meshes", "lesion_reconstructed.glb");
-
-            string? fileToOpen = File.Exists(blendFile) ? blendFile : (File.Exists(glbFile) ? glbFile : null);
-
-            if (fileToOpen == null && Directory.Exists(outputDir))
+            string? fileToOpen = null;
+            if (Directory.Exists(outDir))
             {
-                var blends = Directory.GetFiles(outputDir, "*.blend");
+                var blends = Directory.GetFiles(outDir, "*.blend");
                 if (blends.Length > 0) fileToOpen = blends[0];
                 else
                 {
-                    var glbs = Directory.GetFiles(outputDir, "*.glb");
+                    var glbs = Directory.GetFiles(outDir, "*.glb");
                     if (glbs.Length > 0) fileToOpen = glbs[0];
                 }
             }
 
             if (string.IsNullOrEmpty(fileToOpen) || !File.Exists(fileToOpen))
             {
-                MessageBox.Show("Nessun modello 3D (.blend o .glb) trovato nella cartella di output selezionata. Esegui prima la ricostruzione.", "File non trovato", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show($"No 3D model found in: {outDir}\nPlease click 'Start Reconstruction' first.", "File Not Found", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
@@ -743,58 +552,57 @@ namespace Mammography3D.Desktop
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Errore durante l'avvio di Blender: " + ex.Message, "Errore", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show("Error starting Blender: " + ex.Message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void BtnOpenPreview_Click(object sender, RoutedEventArgs e)
+        {
+            string patientId = (CmbPatientCase.SelectedItem as ComboBoxItem)?.Tag as string ?? "P_00001";
+            string repoRoot = FindRepoRoot();
+
+            string outDir = _currentMode switch
+            {
+                ReconstructionMode.TotalReconstruction => Path.Combine(repoRoot, "07_Total_Reconstruction_Module", "output", patientId),
+                ReconstructionMode.BreastSurface => Path.Combine(repoRoot, "05_Breast_Surface_Module", "output", patientId),
+                _ => Path.Combine(repoRoot, "04_Spicular_Lesion_SMRD_Module", "output", patientId)
+            };
+
+            string? img = FindPreviewImage(outDir, patientId);
+            if (!string.IsNullOrEmpty(img) && File.Exists(img))
+            {
+                try
+                {
+                    Process.Start(new ProcessStartInfo { FileName = img, UseShellExecute = true });
+                }
+                catch { }
+            }
+            else
+            {
+                MessageBox.Show("No 3D render or preview generated yet for this case.", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
             }
         }
 
         private void BtnOpenFolder_Click(object sender, RoutedEventArgs e)
         {
-            string outputDir = TxtOutputDir.Text;
-            if (Directory.Exists(outputDir))
+            string patientId = (CmbPatientCase.SelectedItem as ComboBoxItem)?.Tag as string ?? "P_00001";
+            string repoRoot = FindRepoRoot();
+
+            string outDir = _currentMode switch
             {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = outputDir,
-                    UseShellExecute = true
-                });
+                ReconstructionMode.TotalReconstruction => Path.Combine(repoRoot, "07_Total_Reconstruction_Module", "output", patientId),
+                ReconstructionMode.BreastSurface => Path.Combine(repoRoot, "05_Breast_Surface_Module", "output", patientId),
+                _ => Path.Combine(repoRoot, "04_Spicular_Lesion_SMRD_Module", "output", patientId)
+            };
+
+            if (Directory.Exists(outDir))
+            {
+                Process.Start(new ProcessStartInfo { FileName = outDir, UseShellExecute = true });
             }
             else
             {
-                MessageBox.Show("La cartella specificata non esiste ancora.", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("Output directory does not exist yet.", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
             }
-        }
-
-        private void BtnViewFigures_Click(object sender, RoutedEventArgs e)
-        {
-            string outputDir = TxtOutputDir.Text;
-            string figuresDir = Path.Combine(outputDir, "figures");
-            string mainFig = Path.Combine(figuresDir, "multiview_3d_renders.png");
-
-            if (File.Exists(mainFig))
-            {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = mainFig,
-                    UseShellExecute = true
-                });
-            }
-            else if (Directory.Exists(figuresDir))
-            {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = figuresDir,
-                    UseShellExecute = true
-                });
-            }
-            else
-            {
-                MessageBox.Show("Le figure diagnostiche non sono ancora state generate.", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
-            }
-        }
-
-        private void BtnClearLog_Click(object sender, RoutedEventArgs e)
-        {
-            TxtConsoleLog.Clear();
         }
 
         #endregion

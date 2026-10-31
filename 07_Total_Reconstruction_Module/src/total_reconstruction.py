@@ -398,6 +398,8 @@ def run_total_pipeline(
     print("\n[5/5] Esportazione modello 3D totale (Mammella a 14 Strati + Tumore SMRD)...")
     if not output_dir:
         output_dir = os.path.join(CURRENT_DIR, "..", "output", resolved_pid)
+    elif os.path.basename(os.path.normpath(output_dir)) != resolved_pid:
+        output_dir = os.path.join(output_dir, resolved_pid)
     os.makedirs(output_dir, exist_ok=True)
 
     out_glb = os.path.join(output_dir, f"{resolved_pid}_total_3d.glb")
@@ -435,9 +437,25 @@ def run_total_pipeline(
     print(f"  * Report Clinico 3D salvato    : {out_report_json}")
 
     # Genera scena Blender
-    default_blender = r"C:\Users\Pierluca\OneDrive\Documenti\Blender\blender.exe"
+    import shutil
+    def find_blender():
+        which_b = shutil.which("blender")
+        if which_b: return which_b
+        user_p = os.environ.get("USERPROFILE", "")
+        candidates = [
+            os.path.join(user_p, "OneDrive", "Documenti", "Blender", "blender.exe"),
+            os.path.join(user_p, "Documents", "Blender", "blender.exe"),
+            r"C:\Program Files\Blender Foundation\Blender 5.2\blender.exe",
+            r"C:\Program Files\Blender Foundation\Blender 5.0\blender.exe",
+            r"C:\Program Files\Blender Foundation\Blender 4.2\blender.exe",
+            r"C:\Program Files\Blender Foundation\Blender\blender.exe"
+        ]
+        for c in candidates:
+            if os.path.exists(c): return c
+        return "blender"
+
     if not blender_exe or not os.path.exists(blender_exe):
-        blender_exe = default_blender if os.path.exists(default_blender) else "blender"
+        blender_exe = find_blender()
 
     if os.path.exists(blender_exe):
         setup_script = os.path.join(CURRENT_DIR, "blender_total_setup.py")

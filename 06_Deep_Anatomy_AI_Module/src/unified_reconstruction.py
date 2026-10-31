@@ -402,9 +402,25 @@ def run_unified_pipeline(
     print(f"  * Volume 3D U-Net-GAN salvato: {out_vol_npy}")
     
     # Se Blender è disponibile, genera il file .blend con illuminazione e shader
-    default_blender = r"C:\Users\Pierluca\OneDrive\Documenti\Blender\blender.exe"
+    import shutil
+    def find_blender():
+        which_b = shutil.which("blender")
+        if which_b: return which_b
+        user_p = os.environ.get("USERPROFILE", "")
+        candidates = [
+            os.path.join(user_p, "OneDrive", "Documenti", "Blender", "blender.exe"),
+            os.path.join(user_p, "Documents", "Blender", "blender.exe"),
+            r"C:\Program Files\Blender Foundation\Blender 5.2\blender.exe",
+            r"C:\Program Files\Blender Foundation\Blender 5.0\blender.exe",
+            r"C:\Program Files\Blender Foundation\Blender 4.2\blender.exe",
+            r"C:\Program Files\Blender Foundation\Blender\blender.exe"
+        ]
+        for c in candidates:
+            if os.path.exists(c): return c
+        return "blender"
+
     if not blender_exe or not os.path.exists(blender_exe):
-        blender_exe = default_blender if os.path.exists(default_blender) else "blender"
+        blender_exe = find_blender()
         
     if os.path.exists(blender_exe):
         setup_script = os.path.join(CURRENT_DIR, "blender_setup.py")

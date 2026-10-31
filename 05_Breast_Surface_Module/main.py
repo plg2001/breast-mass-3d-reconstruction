@@ -176,7 +176,10 @@ def run_pipeline(
     metrics = reconstructor.compute_anatomical_metrics(skin_mesh)
 
     # 4. Esportazione in GLB / OBJ della sola superficie cutanea
-    patient_output_dir = os.path.join(output_base_dir, resolved_patient_id)
+    if os.path.basename(os.path.normpath(output_base_dir)) == resolved_patient_id:
+        patient_output_dir = output_base_dir
+    else:
+        patient_output_dir = os.path.join(output_base_dir, resolved_patient_id)
     print(f"\nEsportazione file 3D superficie in: {patient_output_dir}")
     exported_files = export_reconstruction_to_glb(
         skin_mesh=skin_mesh,
@@ -214,9 +217,23 @@ def run_pipeline(
 
 
 def main():
-    default_blender = r"C:\Users\Pierluca\OneDrive\Documenti\Blender\blender.exe"
-    if not os.path.exists(default_blender):
-        default_blender = "blender"
+    import shutil
+    def find_blender():
+        which_b = shutil.which("blender")
+        if which_b: return which_b
+        user_p = os.environ.get("USERPROFILE", "")
+        candidates = [
+            os.path.join(user_p, "OneDrive", "Documenti", "Blender", "blender.exe"),
+            os.path.join(user_p, "Documents", "Blender", "blender.exe"),
+            r"C:\Program Files\Blender Foundation\Blender 5.2\blender.exe",
+            r"C:\Program Files\Blender Foundation\Blender 5.0\blender.exe",
+            r"C:\Program Files\Blender Foundation\Blender 4.2\blender.exe",
+            r"C:\Program Files\Blender Foundation\Blender\blender.exe"
+        ]
+        for c in candidates:
+            if os.path.exists(c): return c
+        return "blender"
+    default_blender = find_blender()
 
     parser = argparse.ArgumentParser(
         description="Ricostruzione 3D Superficie Seno da Mammografie 2D (Paper Huang / Pinto / Kita)"
