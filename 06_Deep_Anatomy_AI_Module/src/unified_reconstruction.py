@@ -1,5 +1,5 @@
 """
-Pipeline Unificata: Ricostruzione Anatomica Superficie Seno (Modulo 06) + 3D U-Net-GAN Lesione (Modulo 07)
+Pipeline Unificata: Ricostruzione Anatomica Superficie Seno (Modulo 05) + 3D U-Net-GAN Lesione (Modulo 06)
 
 Combina:
 1. La superficie cutanea continua, liscia e stagna della mammella (Huang et al. 2006 / Pinto et al. 2023)

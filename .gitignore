@@ -137,9 +137,9 @@ $RECYCLE.BIN/
 !.env.example
 
 # ==============================================================================
-# Regole Locali Assistente AI
+# File di Configurazione Locale / IDE
 # ==============================================================================
-GEMINI.md
-AGENTS.md
-.agents/
-.gemini/
+*.local
+.vs/
+.vscode/
+.idea/

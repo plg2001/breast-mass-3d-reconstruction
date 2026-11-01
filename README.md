@@ -82,13 +82,13 @@ Tesi/
    python 06_Deep_Anatomy_AI_Module/src/unified_reconstruction.py --patient_id P_00081
    ```
 
-2. **Ricostruzione 3D Superficie Seno (Sola Cute Esterna)**:
+3. **Ricostruzione 3D Superficie Seno (Sola Cute Esterna)**:
    Entra in `05_Breast_Surface_Module` ed esegui `run_reconstruction.bat` oppure da terminale:
    ```powershell
    python 05_Breast_Surface_Module/main.py --patient_id P_00081
    ```
 
-3. **Ricostruzione 3D Sola Lesione Tumorale**:
+4. **Ricostruzione 3D Sola Lesione Tumorale**:
    * Modello SMRD (consigliato per realismo biologico):
      ```powershell
      python 04_Spicular_Lesion_SMRD_Module/smrd_lesion_reconstruction.py
@@ -98,5 +98,5 @@ Tesi/
      python 01_Baseline_Lesion_LingShao/lesion_pvc_reconstruction.py
      ```
 
-4. **Applicazione Desktop (Mammography 3D)**:
+5. **Applicazione Desktop (Mammography 3D)**:
    Fai doppio clic su `Mammography3D.bat` nella cartella principale.

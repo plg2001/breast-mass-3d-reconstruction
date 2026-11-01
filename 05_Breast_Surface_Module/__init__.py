@@ -1,5 +1,5 @@
 """
-Modulo 06: Ricostruzione 3D della Superficie del Seno da Mammografie 2D
+Modulo 05: Ricostruzione 3D della Superficie del Seno da Mammografie 2D
 Implementazione basata su Huang et al. (2006) e Pinto et al. (2023).
 """
 
