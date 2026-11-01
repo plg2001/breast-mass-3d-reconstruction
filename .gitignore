@@ -93,7 +93,7 @@ data/*
 **/output/
 **/output_*/
 **/results/
-result/
+
 
 # ==============================================================================
 # Documenti e File Temporanei di Office
